@@ -1,15 +1,13 @@
 const { Sequelize } = require('sequelize');
+const path = require('path');
 require('dotenv').config();
 
-const sequelize = new Sequelize(process.env.DATABASE_URL, {
-  dialect: 'postgres',
-  logging: false,
-  dialectOptions: {
-    ssl: process.env.DATABASE_URL?.includes('sslmode=require') ? {
-      require: true,
-      rejectUnauthorized: false
-    } : false
-  }
+const dbPath = process.env.DATABASE_PATH || path.join(__dirname, '..', 'data', 'quiz.db');
+
+const sequelize = new Sequelize({
+  dialect: 'sqlite',
+  storage: dbPath,
+  logging: false
 });
 
 module.exports = sequelize;

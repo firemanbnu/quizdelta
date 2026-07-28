@@ -18,6 +18,8 @@ export default function Training() {
   const [sessionQuestions, setSessionQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [sessionStarted, setSessionStarted] = useState(false);
+  const [lastResult, setLastResult] = useState(null);
+  const [startTime, setStartTime] = useState(null);
 
   useEffect(() => {
     fetchCategories();
@@ -44,7 +46,7 @@ export default function Training() {
     try {
       const params = {};
       if (selectedCategory) params.category = selectedCategory;
-      const res = await axios.get('/api/questions', { params });
+      const res = await axios.get('/api/questions/training', { params });
       const shuffled = res.data.sort(() => Math.random() - 0.5);
       setSessionQuestions(shuffled.slice(0, Math.min(10, shuffled.length)));
       setCurrentIndex(0);
@@ -52,6 +54,8 @@ export default function Training() {
       setTotalAnswered(0);
       setSelectedAnswer(null);
       setAnswered(false);
+      setLastResult(null);
+      setStartTime(Date.now());
     } catch (err) {
       console.error(err);
     }
@@ -61,16 +65,35 @@ export default function Training() {
     setSessionStarted(true);
   };
 
-  const handleAnswer = (index) => {
+  const handleAnswer = async (index) => {
     if (answered) return;
     setSelectedAnswer(index);
     setAnswered(true);
     setTotalAnswered((prev) => prev + 1);
 
     const currentQuestion = sessionQuestions[currentIndex];
-    if (index === currentQuestion.correct_answer) {
-      setScore((prev) => prev + 1);
+    const responseTime = startTime ? Date.now() - startTime : 0;
+
+    try {
+      const res = await axios.post('/api/training/submit', {
+        question_id: currentQuestion.id,
+        chosen_answer: index,
+        response_time_ms: responseTime
+      });
+
+      setLastResult(res.data);
+
+      if (res.data.is_correct) {
+        setScore((prev) => prev + 1);
+      }
+    } catch (err) {
+      console.error('Erro ao registrar resposta:', err);
+      if (index === currentQuestion.correct_answer) {
+        setScore((prev) => prev + 1);
+      }
     }
+
+    setStartTime(Date.now());
   };
 
   const handleNext = () => {
@@ -81,6 +104,8 @@ export default function Training() {
     setCurrentIndex((prev) => prev + 1);
     setSelectedAnswer(null);
     setAnswered(false);
+    setLastResult(null);
+    setStartTime(Date.now());
   };
 
   const handleNewSession = () => {
@@ -246,8 +271,9 @@ export default function Training() {
           <div className="space-y-3">
             {currentQuestion.options.map((option, index) => {
               const isSelected = selectedAnswer === index;
-              const isCorrect = answered && index === currentQuestion.correct_answer;
-              const isWrong = isSelected && answered && index !== currentQuestion.correct_answer;
+              const correctIdx = lastResult ? lastResult.correct_answer : currentQuestion.correct_answer;
+              const isCorrect = answered && index === correctIdx;
+              const isWrong = isSelected && answered && index !== correctIdx;
 
               return (
                 <motion.button

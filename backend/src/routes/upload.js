@@ -1,7 +1,6 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
-const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 const { auth, adminOnly } = require('../middleware/auth');
 
@@ -33,6 +32,24 @@ const upload = multer({
   }
 });
 
+async function extractPdfText(buffer) {
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs');
+  const data = new Uint8Array(buffer);
+  const doc = await pdfjsLib.getDocument({ data }).promise;
+  const numPages = doc.numPages;
+  let fullText = '';
+
+  for (let i = 1; i <= numPages; i++) {
+    const page = await doc.getPage(i);
+    const content = await page.getTextContent();
+    const strings = content.items.map(item => item.str);
+    const pageText = strings.join(' ');
+    fullText += pageText + '\n\n';
+  }
+
+  return fullText.trim();
+}
+
 router.post('/extract-text', auth, adminOnly, upload.single('file'), async (req, res) => {
   try {
     if (!req.file) {
@@ -45,8 +62,7 @@ router.post('/extract-text', auth, adminOnly, upload.single('file'), async (req,
 
     if (ext === 'pdf') {
       const buffer = fs.readFileSync(filePath);
-      const data = await pdfParse(buffer);
-      text = data.text;
+      text = await extractPdfText(buffer);
     } else if (ext === 'doc' || ext === 'docx') {
       const buffer = fs.readFileSync(filePath);
       const result = await mammoth.extractRawText({ buffer });
@@ -60,7 +76,7 @@ router.post('/extract-text', auth, adminOnly, upload.single('file'), async (req,
     res.json({
       text,
       filename: req.file.originalname,
-      pages: text.split('\n\n').length
+      pages: text.split('\n\n').filter(p => p.trim()).length
     });
   } catch (error) {
     console.error('Erro ao extrair texto:', error);

@@ -12,7 +12,7 @@ const Question = sequelize.define('Question', {
     allowNull: false
   },
   options: {
-    type: DataTypes.JSONB,
+    type: DataTypes.JSON,
     allowNull: false,
     defaultValue: []
   },

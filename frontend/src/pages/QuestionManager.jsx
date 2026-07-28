@@ -18,16 +18,27 @@ export default function QuestionManager() {
     category: '',
     difficulty: 'medio'
   });
-  const [pdfFile, setPdfFile] = useState(null);
-  const [pdfText, setPdfText] = useState('');
-  const [generating, setGenerating] = useState(false);
-  const [generatedQuestions, setGeneratedQuestions] = useState([]);
+  const [inputText, setInputText] = useState('');
+  const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
-  const fileInputRef = useRef(null);
+  const [importCategory, setImportCategory] = useState('Importado');
+  const [highlightedId, setHighlightedId] = useState(null);
+  const listRef = useRef(null);
 
   useEffect(() => {
     fetchQuestions();
   }, [filter]);
+
+  useEffect(() => {
+    if (highlightedId && listRef.current) {
+      const el = listRef.current.querySelector(`[data-question-id="${highlightedId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+      const timer = setTimeout(() => setHighlightedId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightedId, questions]);
 
   const fetchQuestions = async () => {
     try {
@@ -47,6 +58,7 @@ export default function QuestionManager() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
+      const editId = editingQuestion?.id;
       if (editingQuestion) {
         await axios.put(`/api/questions/${editingQuestion.id}`, form);
         setMessage('Pergunta atualizada!');
@@ -55,7 +67,11 @@ export default function QuestionManager() {
         setMessage('Pergunta criada!');
       }
       resetForm();
-      fetchQuestions();
+      setActiveTab('list');
+      await fetchQuestions();
+      if (editId) {
+        setHighlightedId(editId);
+      }
     } catch (err) {
       setMessage(err.response?.data?.error || 'Erro ao salvar pergunta');
     }
@@ -92,41 +108,76 @@ export default function QuestionManager() {
     }
   };
 
-  const handlePdfUpload = async () => {
-    if (!pdfFile) return;
-    const formData = new FormData();
-    formData.append('file', pdfFile);
+  const parseQuestionsFromText = (text) => {
+    const separator = /\n?\*{4,}\n?/;
+    const blocks = text.split(separator).filter(b => b.trim());
 
-    try {
-      setGenerating(true);
-      const res = await axios.post('/api/upload/extract-text', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      setPdfText(res.data.text);
-      setMessage('Texto extraído com sucesso!');
-    } catch (err) {
-      setMessage(err.response?.data?.error || 'Erro ao extrair texto');
-    } finally {
-      setGenerating(false);
+    const questions = [];
+    let number = 0;
+
+    for (const block of blocks) {
+      const lines = block.split('\n').map(l => l.trim()).filter(l => l);
+      if (lines.length < 2) continue;
+
+      let questionText = '';
+      const options = [];
+      let correctAnswer = 0;
+
+      for (const line of lines) {
+        const optionMatch = line.match(/^([A-Da-d])[\.\)]\s*(.+)/);
+        if (optionMatch) {
+          options.push(optionMatch[2].trim());
+          if (line.includes('*') || line.includes('✓') || line.includes('(certa)') || line.includes('(correta)')) {
+            correctAnswer = options.length - 1;
+          }
+        } else if (options.length === 0) {
+          const cleanLine = line.replace(/^\d{1,3}[\.\)]\s*/, '');
+          questionText += (questionText ? ' ' : '') + cleanLine;
+        }
+      }
+
+      if (questionText && options.length >= 2) {
+        number++;
+        questions.push({
+          number,
+          text: questionText,
+          options: options.length >= 4 ? options.slice(0, 4) : [...options, ...Array(4 - options.length).fill('')],
+          correct_answer: correctAnswer < options.length ? correctAnswer : 0,
+          category: importCategory,
+          difficulty: 'medio',
+          source: 'pdf'
+        });
+      }
     }
+
+    return questions;
   };
 
-  const handleGenerateQuestions = async () => {
-    if (!pdfText) return;
+  const handleParseAndImport = async () => {
+    if (!inputText.trim()) {
+      setMessage('Cole o texto com as perguntas primeiro');
+      return;
+    }
+
+    const parsed = parseQuestionsFromText(inputText);
+    if (parsed.length === 0) {
+      setMessage('Nenhuma pergunta encontrada. Verifique o formato: perguntas separadas por ****');
+      return;
+    }
+
     try {
-      setGenerating(true);
-      const res = await axios.post('/api/ai/generate', {
-        text: pdfText,
-        count: 10,
-        category: filter.category || 'Geral'
+      setImporting(true);
+      const res = await axios.post('/api/questions/import', {
+        questions: parsed,
+        category: importCategory
       });
-      setGeneratedQuestions(res.data.questions);
-      setMessage(`${res.data.questions.length} perguntas geradas!`);
+      setMessage(`${res.data.questions.length} perguntas importadas com sucesso!`);
+      setInputText('');
       fetchQuestions();
     } catch (err) {
-      setMessage(err.response?.data?.error || 'Erro ao gerar perguntas');
+      setMessage(err.response?.data?.error || 'Erro ao importar perguntas');
     } finally {
-      setGenerating(false);
+      setImporting(false);
     }
   };
 
@@ -164,12 +215,11 @@ export default function QuestionManager() {
           </motion.div>
         )}
 
-        {/* Tabs */}
         <div className="flex gap-2 mb-6 flex-wrap">
           {[
             { key: 'list', label: 'Lista', icon: '📋' },
             { key: 'create', label: 'Criar', icon: '✏️' },
-            { key: 'pdf', label: 'Upload PDF + IA', icon: '🤖' }
+            { key: 'import', label: 'Importar', icon: '📋' }
           ].map((tab) => (
             <button
               key={tab.key}
@@ -191,10 +241,8 @@ export default function QuestionManager() {
           ))}
         </div>
 
-        {/* List Tab */}
         {activeTab === 'list' && (
           <>
-            {/* Filters */}
             <div className="flex gap-2 mb-4 flex-wrap">
               <select
                 value={filter.approved}
@@ -222,14 +270,22 @@ export default function QuestionManager() {
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500 mx-auto"></div>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-2" ref={listRef}>
                 {questions.length === 0 ? (
                   <div className="card text-center text-gray-400">
                     Nenhuma pergunta encontrada
                   </div>
                 ) : (
                   questions.map((q) => (
-                    <div key={q.id} className="card">
+                    <div
+                      key={q.id}
+                      data-question-id={q.id}
+                      className={`card transition-all duration-500 ${
+                        highlightedId === q.id
+                          ? 'ring-2 ring-primary-500 bg-primary-500/10'
+                          : ''
+                      }`}
+                    >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
@@ -303,7 +359,6 @@ export default function QuestionManager() {
           </>
         )}
 
-        {/* Create/Edit Tab */}
         {activeTab === 'create' && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
             <h2 className="text-xl font-bold mb-4">
@@ -375,91 +430,67 @@ export default function QuestionManager() {
           </motion.div>
         )}
 
-        {/* PDF + IA Tab */}
-        {activeTab === 'pdf' && (
+        {activeTab === 'import' && (
           <div className="space-y-6">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
-              <h2 className="text-xl font-bold mb-4">📄 Upload de Arquivo</h2>
+              <h2 className="text-xl font-bold mb-4">📋 Importar Perguntas</h2>
               <p className="text-gray-400 text-sm mb-4">
-                Faça upload de um PDF, DOC ou TXT para extrair o conteúdo e gerar perguntas automaticamente.
+                Cole o texto com as perguntas abaixo. Separe cada pergunta com uma linha de asterísticos (****).
               </p>
-              <div className="flex gap-2">
+
+              <div className="bg-gray-800/50 rounded-xl p-3 mb-4">
+                <p className="text-gray-500 text-xs mb-2">Formato esperado:</p>
+                <pre className="text-xs text-gray-400 whitespace-pre-wrap font-mono">
+{`1. Qual é a capital do Brasil?
+A. São Paulo
+B. Rio de Janeiro
+C. Brasília
+D. Salvador
+
+****
+
+2. Qual é o maior planeta?
+A. Terra
+B. Marte
+C. Júpiter
+D. Saturno`}
+                </pre>
+              </div>
+
+              <div className="mb-4">
+                <label className="block text-sm text-gray-400 mb-2">Categoria:</label>
                 <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={(e) => setPdfFile(e.target.files[0])}
-                  accept=".pdf,.doc,.docx,.txt"
-                  className="hidden"
+                  type="text"
+                  value={importCategory}
+                  onChange={(e) => setImportCategory(e.target.value)}
+                  placeholder="Ex: Direito Penal"
+                  className="input w-full"
                 />
+              </div>
+
+              <textarea
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                placeholder="Cole aqui o texto com as perguntas..."
+                className="input w-full h-64 resize-y font-mono text-sm"
+              />
+
+              <div className="flex gap-2 mt-4">
                 <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="btn-secondary flex-1"
+                  onClick={() => setInputText('')}
+                  className="btn-secondary"
                 >
-                  {pdfFile ? pdfFile.name : 'Selecionar arquivo'}
+                  Limpar
                 </button>
                 <button
-                  onClick={handlePdfUpload}
-                  disabled={!pdfFile || generating}
-                  className="btn-primary"
+                  onClick={handleParseAndImport}
+                  disabled={!inputText.trim() || importing}
+                  className="btn-primary flex-1"
                 >
-                  {generating ? 'Extraindo...' : 'Extrair Texto'}
+                  {importing ? 'Salvando perguntas...' : '📥 Separar e Salvar Perguntas'}
                 </button>
               </div>
             </motion.div>
-
-            {pdfText && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
-                <h2 className="text-xl font-bold mb-4">📝 Texto Extraído</h2>
-                <div className="bg-gray-800/50 rounded-xl p-4 max-h-64 overflow-y-auto mb-4">
-                  <pre className="text-sm text-gray-300 whitespace-pre-wrap font-sans">
-                    {pdfText.substring(0, 3000)}
-                    {pdfText.length > 3000 && '...'}
-                  </pre>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => { setPdfText(''); setPdfFile(null); setGeneratedQuestions([]); }}
-                    className="btn-secondary"
-                  >
-                    Limpar
-                  </button>
-                  <button
-                    onClick={handleGenerateQuestions}
-                    disabled={generating}
-                    className="btn-primary flex-1"
-                  >
-                    {generating ? 'Gerando perguntas com IA...' : '🤖 Gerar Perguntas com IA'}
-                  </button>
-                </div>
-              </motion.div>
-            )}
-
-            {generatedQuestions.length > 0 && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
-                <h2 className="text-xl font-bold mb-4">
-                  ✨ Perguntas Geradas ({generatedQuestions.length})
-                </h2>
-                <p className="text-gray-400 text-sm mb-4">
-                  As perguntas foram salvas como pendentes. Revise e aprove na aba Lista.
-                </p>
-                <div className="space-y-2">
-                  {generatedQuestions.map((q) => (
-                    <div key={q.id} className="bg-gray-800/50 rounded-xl p-3">
-                      <p className="font-semibold text-sm mb-2">{q.text}</p>
-                      <div className="flex flex-wrap gap-1">
-                        {q.options?.map((opt, i) => (
-                          <span key={i} className={`text-xs px-2 py-1 rounded-lg ${
-                            i === q.correct_answer ? 'bg-green-500/10 text-green-400' : 'bg-gray-800 text-gray-400'
-                          }`}>
-                            {String.fromCharCode(65 + i)}: {opt.substring(0, 40)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            )}
           </div>
         )}
       </div>

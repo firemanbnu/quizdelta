@@ -52,15 +52,55 @@ router.get('/categories', auth, async (req, res) => {
   }
 });
 
-router.get('/:id', auth, async (req, res) => {
+router.get('/training', auth, async (req, res) => {
   try {
-    const question = await Question.findByPk(req.params.id);
-    if (!question) {
-      return res.status(404).json({ error: 'Pergunta não encontrada' });
-    }
-    res.json(question);
+    const { category } = req.query;
+    const where = { approved: true };
+    if (category) where.category = category;
+
+    const questions = await Question.findAll({
+      where,
+      order: [['createdAt', 'DESC']]
+    });
+
+    res.json(questions);
   } catch (error) {
-    res.status(500).json({ error: 'Erro ao buscar pergunta' });
+    res.status(500).json({ error: 'Erro ao buscar perguntas de treino' });
+  }
+});
+
+router.post('/import', auth, adminOnly, async (req, res) => {
+  try {
+    const { questions, category } = req.body;
+
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma pergunta para importar' });
+    }
+
+    const saved = [];
+    for (const q of questions) {
+      if (!q.text || !q.options || q.options.length < 2) continue;
+
+      const question = await Question.create({
+        text: q.text,
+        options: q.options,
+        correct_answer: q.correct_answer || 0,
+        category: q.category || category || 'Importado',
+        difficulty: q.difficulty || 'medio',
+        source: 'pdf',
+        approved: true,
+        created_by: req.user.id
+      });
+      saved.push(question);
+    }
+
+    res.status(201).json({
+      message: `${saved.length} perguntas importadas com sucesso`,
+      questions: saved
+    });
+  } catch (error) {
+    console.error('Erro ao importar perguntas:', error);
+    res.status(500).json({ error: 'Erro ao importar perguntas' });
   }
 });
 
@@ -95,6 +135,18 @@ router.post('/', auth, adminOnly, async (req, res) => {
   } catch (error) {
     console.error('Erro ao criar pergunta:', error);
     res.status(500).json({ error: 'Erro ao criar pergunta' });
+  }
+});
+
+router.get('/:id', auth, async (req, res) => {
+  try {
+    const question = await Question.findByPk(req.params.id);
+    if (!question) {
+      return res.status(404).json({ error: 'Pergunta não encontrada' });
+    }
+    res.json(question);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar pergunta' });
   }
 });
 

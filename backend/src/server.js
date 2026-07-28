@@ -50,7 +50,7 @@ async function start() {
     await sequelize.authenticate();
     console.log('Conectado ao banco de dados');
 
-    await sequelize.sync({ alter: true });
+    await sequelize.sync();
     console.log('Tabelas sincronizadas');
 
     server.listen(PORT, () => {
