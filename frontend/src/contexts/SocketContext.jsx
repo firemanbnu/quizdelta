@@ -2,6 +2,8 @@ import React, { createContext, useContext, useEffect, useState, useRef } from 'r
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
 
+const API_URL = import.meta.env.VITE_API_URL || '';
+
 const SocketContext = createContext(null);
 
 export function SocketProvider({ children }) {
@@ -11,7 +13,7 @@ export function SocketProvider({ children }) {
 
   useEffect(() => {
     if (token) {
-      const newSocket = io('/', {
+      const newSocket = io(API_URL || '/', {
         auth: { token },
         transports: ['websocket', 'polling']
       });

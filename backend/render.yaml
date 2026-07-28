@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: quizdelta-backend
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: PORT
+        value: 3001
+      - key: JWT_SECRET
+        value: quizdelta_secret_2024
+      - key: FRONTEND_URL
+        value: https://frontend-t0tb2izcf-firemanbnu-5995s-projects.vercel.app
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        fromDatabase:
+          name: quizdelta-db
+          property: connectionString
+
+databases:
+  - name: quizdelta-db
+    plan: free
