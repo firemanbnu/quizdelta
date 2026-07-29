@@ -47,10 +47,10 @@ export default function Login() {
             transition={{ type: 'spring', stiffness: 200, delay: 0.2 }}
             className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center"
           >
-            <span className="text-4xl font-bold text-white">Q</span>
+            <span className="text-4xl font-bold text-white transform -rotate-12">Δ</span>
           </motion.div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent">
-            Quiz Competition
+            Saber Delta
           </h1>
           <p className="text-gray-400 mt-2">
             {isRegister ? 'Crie sua conta' : 'Entre na competição'}

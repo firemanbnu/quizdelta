@@ -81,9 +81,9 @@ export default function Dashboard() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-primary-500 to-accent-500 flex items-center justify-center">
-              <span className="text-xl font-bold">Q</span>
+              <span className="text-xl font-bold transform -rotate-12">Δ</span>
             </div>
-            <h1 className="text-xl font-bold">Quiz Competition</h1>
+            <h1 className="text-xl font-bold">Saber Delta</h1>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-gray-400 text-sm">
