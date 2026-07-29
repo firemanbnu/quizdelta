@@ -27,6 +27,89 @@ async function getSelectedQuestions(competition) {
   return shuffled.slice(0, competition.total_questions);
 }
 
+function scheduleNextQuestion(io, code, room, delayMs = 2000) {
+  if (room.timer) clearTimeout(room.timer);
+  room.timer = setTimeout(async () => {
+    if (room.status !== 'active') return;
+    advanceQuestion(io, code, room);
+  }, delayMs);
+}
+
+async function advanceQuestion(io, code, room) {
+  room.currentQuestionIndex++;
+
+  if (room.currentQuestionIndex >= room.totalQuestions) {
+    await finishCompetition(io, code, room);
+    return;
+  }
+
+  room.answers.clear();
+  sendQuestion(io, code, room);
+}
+
+function sendQuestion(io, code, room) {
+  const question = room.questions[room.currentQuestionIndex];
+  room.questionStartTime = Date.now();
+  room.answers.clear();
+
+  io.to(`quiz-${code}`).emit('new-question', {
+    questionId: question.id,
+    text: question.text,
+    options: question.options,
+    category: question.category,
+    difficulty: question.difficulty,
+    questionNumber: room.currentQuestionIndex + 1,
+    totalQuestions: room.totalQuestions,
+    timeLimit: room.timePerQuestion
+  });
+
+  if (room.timer) clearTimeout(room.timer);
+
+  room.timer = setTimeout(async () => {
+    if (room.status === 'active') {
+      const question = room.questions[room.currentQuestionIndex];
+      io.to(`quiz-${code}`).emit('question-timeout', {
+        questionId: question.id,
+        correctAnswer: question.correct_answer
+      });
+      scheduleNextQuestion(io, code, room, 2000);
+    }
+  }, room.timePerQuestion * 1000);
+}
+
+async function finishCompetition(io, code, room, cancelled = false) {
+  if (room.timer) clearTimeout(room.timer);
+  room.status = 'finished';
+
+  const competition = await Competition.findByPk(room.competitionId);
+  if (competition) {
+    await competition.update({ status: 'finished', finished_at: new Date() });
+  }
+
+  const participants = await CompetitionParticipant.findAll({
+    where: { competition_id: room.competitionId },
+    include: [{ model: require('../models/User'), as: 'user', attributes: ['id', 'name'] }],
+    order: [['correct_answers', 'DESC'], ['score', 'DESC']]
+  });
+
+  const finalRanking = participants.map((p, i) => ({
+    position: i + 1,
+    id: p.user.id,
+    name: p.user.name,
+    score: p.score,
+    correctAnswers: p.correct_answers,
+    totalAnswered: p.total_answered,
+    accuracy: p.total_answered > 0 ? Math.round((p.correct_answers / p.total_answered) * 100) : 0
+  }));
+
+  io.to(`quiz-${code}`).emit('competition-finished', {
+    ranking: finalRanking,
+    cancelled
+  });
+
+  rooms.delete(code);
+}
+
 function initSocket(io) {
   io.use(async (socket, next) => {
     try {
@@ -86,7 +169,8 @@ function initSocket(io) {
             questionStartTime: null,
             questions: [],
             timer: null,
-            hostId: competition.host_id
+            hostId: competition.host_id,
+            participantCount: 0
           });
         }
 
@@ -95,6 +179,8 @@ function initSocket(io) {
           where: { competition_id: competition.id },
           include: [{ model: require('../models/User'), as: 'user', attributes: ['id', 'name'] }]
         });
+
+        room.participantCount = allParticipants.length;
 
         callback({
           success: true,
@@ -150,6 +236,11 @@ function initSocket(io) {
         room.totalQuestions = questions.length;
         room.status = 'active';
         room.currentQuestionIndex = 0;
+
+        const allParticipants = await CompetitionParticipant.findAll({
+          where: { competition_id: competition.id }
+        });
+        room.participantCount = allParticipants.length;
 
         await competition.update({
           status: 'active',
@@ -219,31 +310,19 @@ function initSocket(io) {
           correctAnswer: question.correct_answer,
           points
         });
+
+        if (room.answers.size >= room.participantCount) {
+          if (room.timer) clearTimeout(room.timer);
+          const question = room.questions[room.currentQuestionIndex];
+          io.to(`quiz-${code}`).emit('question-timeout', {
+            questionId: question.id,
+            correctAnswer: question.correct_answer
+          });
+          scheduleNextQuestion(io, code, room, 2000);
+        }
       } catch (error) {
         console.error('Erro ao enviar resposta:', error);
         callback({ error: 'Erro ao enviar resposta' });
-      }
-    });
-
-    socket.on('next-question', async ({ code }, callback) => {
-      try {
-        const room = rooms.get(code);
-        if (!room || room.hostId !== socket.user.id) {
-          return callback({ error: 'Apenas o host pode avançar' });
-        }
-
-        room.currentQuestionIndex++;
-
-        if (room.currentQuestionIndex >= room.totalQuestions) {
-          await finishCompetition(io, code, room);
-          return callback({ success: true, finished: true });
-        }
-
-        room.answers.clear();
-        sendQuestion(io, code, room);
-        callback({ success: true, finished: false });
-      } catch (error) {
-        callback({ error: 'Erro ao avançar' });
       }
     });
 
@@ -291,68 +370,6 @@ function initSocket(io) {
       console.log(`Usuário desconectado: ${socket.user.name}`);
     });
   });
-}
-
-function sendQuestion(io, code, room) {
-  const question = room.questions[room.currentQuestionIndex];
-  room.questionStartTime = Date.now();
-  room.answers.clear();
-
-  io.to(`quiz-${code}`).emit('new-question', {
-    questionId: question.id,
-    text: question.text,
-    options: question.options,
-    category: question.category,
-    difficulty: question.difficulty,
-    questionNumber: room.currentQuestionIndex + 1,
-    totalQuestions: room.totalQuestions,
-    timeLimit: room.timePerQuestion
-  });
-
-  if (room.timer) clearTimeout(room.timer);
-
-  room.timer = setTimeout(async () => {
-    if (room.status === 'active') {
-      const question = room.questions[room.currentQuestionIndex];
-      io.to(`quiz-${code}`).emit('question-timeout', {
-        questionId: question.id,
-        correctAnswer: question.correct_answer
-      });
-    }
-  }, room.timePerQuestion * 1000);
-}
-
-async function finishCompetition(io, code, room, cancelled = false) {
-  if (room.timer) clearTimeout(room.timer);
-  room.status = 'finished';
-
-  const competition = await Competition.findByPk(room.competitionId);
-  if (competition) {
-    await competition.update({ status: 'finished', finished_at: new Date() });
-  }
-
-  const participants = await CompetitionParticipant.findAll({
-    where: { competition_id: room.competitionId },
-    include: [{ model: require('../models/User'), as: 'user', attributes: ['id', 'name'] }],
-    order: [['correct_answers', 'DESC'], ['score', 'DESC']]
-  });
-
-  const finalRanking = participants.map((p, i) => ({
-    position: i + 1,
-    id: p.user.id,
-    name: p.user.name,
-    score: p.score,
-    correctAnswers: p.correct_answers,
-    totalAnswered: p.total_answered,
-    accuracy: p.total_answered > 0 ? Math.round((p.correct_answers / p.total_answered) * 100) : 0
-  }));
-
-  io.to(`quiz-${code}`).emit('competition-finished', {
-    ranking: finalRanking,
-    cancelled
-  });
-
-  rooms.delete(code);
 }
 
 module.exports = { initSocket, getRoom };

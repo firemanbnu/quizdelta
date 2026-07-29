@@ -103,14 +103,6 @@ export default function GameRoom() {
     });
   };
 
-  const handleNextQuestion = () => {
-    socket.emit('next-question', { code }, (response) => {
-      if (response.finished) {
-        setFinished(true);
-      }
-    });
-  };
-
   const handleBackToDashboard = () => {
     navigate('/dashboard');
   };
@@ -286,12 +278,10 @@ export default function GameRoom() {
               )}
             </motion.div>
 
-            {/* Next Button */}
+            {/* Auto-advance notice */}
             {answered && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-                <button onClick={handleNextQuestion} className="btn-primary">
-                  {questionNumber >= totalQuestions ? 'Ver Resultado' : 'Próxima Pergunta'}
-                </button>
+                <p className="text-gray-500 text-sm">Aguardando os demais participantes...</p>
               </motion.div>
             )}
           </div>
