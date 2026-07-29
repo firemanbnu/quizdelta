@@ -289,9 +289,15 @@ export default function QuestionManager() {
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className={`text-xs px-2 py-1 rounded-full ${
-                              q.approved ? 'bg-green-500/20 text-green-400' : 'bg-yellow-500/20 text-yellow-400'
-                            }`}>
+                            <span
+                              onClick={() => handleApprove(q.id, !q.approved)}
+                              className={`cursor-pointer text-xs px-2 py-1 rounded-full transition-all hover:scale-105 ${
+                                q.approved
+                                  ? 'bg-green-500/20 text-green-400 hover:bg-yellow-500/20 hover:text-yellow-400'
+                                  : 'bg-yellow-500/20 text-yellow-400 hover:bg-green-500/20 hover:text-green-400'
+                              }`}
+                              title={q.approved ? 'Clique para desaprovar' : 'Clique para aprovar'}
+                            >
                               {q.approved ? 'Aprovada' : 'Pendente'}
                             </span>
                             <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">

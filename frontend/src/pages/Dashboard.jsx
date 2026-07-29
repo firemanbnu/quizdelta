@@ -106,16 +106,16 @@ export default function Dashboard() {
             <p className="text-gray-400 text-sm mb-4">
               Digite o código de 4 dígitos para entrar
             </p>
-            <div className="flex gap-2">
+            <div className="flex flex-nowrap gap-2">
               <input
                 type="text"
                 placeholder="Código"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
-                className="input flex-1 text-center text-2xl tracking-widest font-mono"
+                className="input flex-1 min-w-0 text-center text-xl tracking-widest font-mono"
                 maxLength={4}
               />
-              <button onClick={handleJoin} className="btn-primary">
+              <button onClick={handleJoin} className="btn-primary shrink-0">
                 Entrar
               </button>
             </div>
