@@ -176,4 +176,21 @@ router.get('/last-finished', auth, async (req, res) => {
   }
 });
 
+router.delete('/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const competition = await Competition.findByPk(req.params.id);
+    if (!competition) {
+      return res.status(404).json({ error: 'Competição não encontrada' });
+    }
+
+    await CompetitionParticipant.destroy({ where: { competition_id: competition.id } });
+    await competition.destroy();
+
+    res.json({ message: 'Competição excluída com sucesso' });
+  } catch (error) {
+    console.error('Erro ao excluir competição:', error);
+    res.status(500).json({ error: 'Erro ao excluir competição' });
+  }
+});
+
 module.exports = router;

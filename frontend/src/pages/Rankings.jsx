@@ -86,6 +86,21 @@ export default function Rankings() {
     }
   };
 
+  const handleDeleteCompetition = async (compId, e) => {
+    e.stopPropagation();
+    if (!confirm('Tem certeza que deseja excluir esta competição do ranking?')) return;
+    try {
+      await axios.delete(`/api/competitions/${compId}`);
+      setCompetitions((prev) => prev.filter((c) => c.id !== compId));
+      if (selectedComp?.id === compId) {
+        setSelectedComp(null);
+        setCompRanking([]);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
       <div className="max-w-2xl mx-auto px-4 py-8">
@@ -189,9 +204,20 @@ export default function Rankings() {
                               Código: {comp.code} · {comp.participants_count} participantes · {comp.finished_at ? new Date(comp.finished_at).toLocaleDateString('pt-BR') : ''}
                             </p>
                           </div>
-                          <span className={`text-sm transition-all ${selectedComp?.id === comp.id ? 'rotate-180' : ''}`}>
-                            ▼
-                          </span>
+                          <div className="flex items-center gap-2">
+                            {user?.role === 'admin' && (
+                              <button
+                                onClick={(e) => handleDeleteCompetition(comp.id, e)}
+                                className="p-1.5 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-xs"
+                                title="Excluir competição"
+                              >
+                                🗑
+                              </button>
+                            )}
+                            <span className={`text-sm transition-all ${selectedComp?.id === comp.id ? 'rotate-180' : ''}`}>
+                              ▼
+                            </span>
+                          </div>
                         </div>
                       </motion.div>
 
