@@ -9,6 +9,7 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const [joinCode, setJoinCode] = useState('');
   const [competitions, setCompetitions] = useState([]);
+  const [lastFinished, setLastFinished] = useState(null);
   const [newCompetition, setNewCompetition] = useState({
     title: '',
     total_questions: 10,
@@ -26,8 +27,12 @@ export default function Dashboard() {
 
   const fetchCompetitions = async () => {
     try {
-      const res = await axios.get('/api/competitions/active');
-      setCompetitions(res.data);
+      const [activeRes, lastRes] = await Promise.all([
+        axios.get('/api/competitions/active'),
+        axios.get('/api/competitions/last-finished')
+      ]);
+      setCompetitions(activeRes.data);
+      setLastFinished(lastRes.data);
     } catch (err) {
       console.error(err);
     }
@@ -204,28 +209,66 @@ export default function Dashboard() {
                 className="card"
               >
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                  <span className="text-2xl">📊</span> Competições Ativas
+                  <span className="text-2xl">📊</span> Última Competição
                 </h2>
-                {competitions.length === 0 ? (
-                  <p className="text-gray-500 text-sm">Nenhuma competição ativa</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {competitions.map((comp) => (
-                      <div key={comp.id} className="bg-gray-800/50 rounded-lg p-3 flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold text-sm">{comp.title}</p>
-                          <p className="text-gray-400 text-xs">
-                            Código: <span className="text-primary-400 font-mono">{comp.code}</span> · {comp.participants?.length || 0} jogadores
-                          </p>
-                        </div>
-                        <span className={`text-xs px-2 py-1 rounded-full ${
-                          comp.status === 'waiting' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
-                        }`}>
-                          {comp.status === 'waiting' ? 'Aguardando' : 'Ativa'}
-                        </span>
+                {lastFinished ? (
+                  <div>
+                    <div className="flex items-center justify-between mb-3">
+                      <div>
+                        <p className="font-semibold text-sm">{lastFinished.title}</p>
+                        <p className="text-gray-400 text-xs">
+                          Código: <span className="text-primary-400 font-mono">{lastFinished.code}</span>
+                          {lastFinished.finished_at && <> · {new Date(lastFinished.finished_at).toLocaleDateString('pt-BR')}</>}
+                        </p>
                       </div>
-                    ))}
+                    </div>
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {lastFinished.rankings.map((p, i) => (
+                        <div
+                          key={p.user_id}
+                          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+                            p.user_id === user?.id
+                              ? 'bg-primary-500/10 border border-primary-500/20'
+                              : 'bg-gray-800/50'
+                          }`}
+                        >
+                          <span className="font-bold w-5 text-center text-xs">
+                            {i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i + 1}°`}
+                          </span>
+                          <span className={`flex-1 font-medium ${p.user_id === user?.id ? 'text-primary-400' : ''}`}>
+                            {p.name}
+                          </span>
+                          <span className="text-gray-400">{p.correct_answers}/{p.total_answered}</span>
+                          <span className="font-bold text-primary-400">{p.score} pts</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
+                ) : (
+                  <p className="text-gray-500 text-sm">Nenhuma competição finalizada</p>
+                )}
+                {competitions.length > 0 && (
+                  <>
+                    <hr className="border-gray-800 my-3" />
+                    <div className="space-y-2 max-h-32 overflow-y-auto">
+                      <p className="text-xs text-gray-500 font-semibold uppercase tracking-wider">Aguardando / Ativas</p>
+                      {competitions.map((comp) => (
+                        <div key={comp.id} className="bg-gray-800/50 rounded-lg p-3 flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-sm">{comp.title}</p>
+                            <p className="text-gray-400 text-xs">
+                              Código: <span className="text-primary-400 font-mono">{comp.code}</span> · {comp.participants?.length || 0} jogadores
+                            </p>
+                          </div>
+                          <span className={`text-xs px-2 py-1 rounded-full ${
+                            comp.status === 'waiting' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-green-500/20 text-green-400'
+                          }`}>
+                            {comp.status === 'waiting' ? 'Aguardando' : 'Ativa'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
                 )}
               </motion.div>
             </>

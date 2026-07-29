@@ -1,4 +1,6 @@
 const express = require('express');
+const { QueryTypes } = require('sequelize');
+const sequelize = require('../database');
 const Competition = require('../models/Competition');
 const CompetitionParticipant = require('../models/CompetitionParticipant');
 const Question = require('../models/Question');
@@ -132,6 +134,45 @@ router.get('/join/:code', auth, async (req, res) => {
   } catch (error) {
     console.error('Erro ao entrar na competição:', error);
     res.status(500).json({ error: 'Erro ao entrar na competição' });
+  }
+});
+
+router.get('/last-finished', auth, async (req, res) => {
+  try {
+    const competition = await Competition.findOne({
+      where: { status: 'finished' },
+      include: [{ model: CompetitionParticipant, as: 'participants' }],
+      order: [['finished_at', 'DESC']]
+    });
+
+    if (!competition) {
+      return res.json(null);
+    }
+
+    const rankings = await sequelize.query(`
+      SELECT
+        cp.user_id,
+        u.name,
+        cp.correct_answers,
+        cp.total_answered,
+        cp.score,
+        CASE WHEN cp.total_answered > 0
+          THEN ROUND((cp.correct_answers::float / cp.total_answered) * 100, 1)
+          ELSE 0
+        END as accuracy
+      FROM competition_participants cp
+      JOIN users u ON u.id = cp.user_id
+      WHERE cp.competition_id = :competitionId
+      ORDER BY cp.correct_answers DESC, cp.score DESC
+    `, {
+      replacements: { competitionId: competition.id },
+      type: QueryTypes.SELECT
+    });
+
+    res.json({ ...competition.toJSON(), rankings });
+  } catch (error) {
+    console.error('Erro ao buscar última competição:', error);
+    res.status(500).json({ error: 'Erro ao buscar última competição' });
   }
 });
 

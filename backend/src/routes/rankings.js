@@ -129,4 +129,30 @@ router.get('/my-history', auth, async (req, res) => {
   }
 });
 
+router.get('/competitions', auth, async (req, res) => {
+  try {
+    const competitions = await sequelize.query(`
+      SELECT
+        c.id,
+        c.title,
+        c.code,
+        c.finished_at,
+        COUNT(cp.id) as participants_count
+      FROM competitions c
+      LEFT JOIN competition_participants cp ON cp.competition_id = c.id
+      WHERE c.status = 'finished'
+      GROUP BY c.id, c.title, c.code, c.finished_at
+      ORDER BY c.finished_at DESC
+      LIMIT 20
+    `, {
+      type: QueryTypes.SELECT
+    });
+
+    res.json(competitions);
+  } catch (error) {
+    console.error('Erro ao buscar competições:', error);
+    res.status(500).json({ error: 'Erro ao buscar competições' });
+  }
+});
+
 module.exports = router;

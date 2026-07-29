@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export default function Rankings() {
   const { user } = useAuth();
@@ -10,26 +10,79 @@ export default function Rankings() {
   const [activeTab, setActiveTab] = useState('general');
   const [generalRanking, setGeneralRanking] = useState([]);
   const [myHistory, setMyHistory] = useState([]);
+  const [competitions, setCompetitions] = useState([]);
+  const [selectedComp, setSelectedComp] = useState(null);
+  const [compRanking, setCompRanking] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingComp, setLoadingComp] = useState(false);
 
   useEffect(() => {
-    fetchRankings();
+    if (activeTab === 'general') {
+      fetchGeneralRanking();
+    } else if (activeTab === 'history') {
+      fetchMyHistory();
+    } else if (activeTab === 'competitions') {
+      fetchCompetitions();
+    }
   }, [activeTab]);
 
-  const fetchRankings = async () => {
+  const fetchGeneralRanking = async () => {
     setLoading(true);
     try {
-      if (activeTab === 'general') {
-        const res = await axios.get('/api/rankings/general');
-        setGeneralRanking(res.data);
-      } else {
-        const res = await axios.get('/api/rankings/my-history');
-        setMyHistory(res.data);
-      }
+      const res = await axios.get('/api/rankings/general');
+      setGeneralRanking(res.data);
     } catch (err) {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMyHistory = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/rankings/my-history');
+      setMyHistory(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCompetitions = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get('/api/rankings/competitions');
+      setCompetitions(res.data);
+      setSelectedComp(null);
+      setCompRanking([]);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchCompetitionRanking = async (compId) => {
+    setLoadingComp(true);
+    try {
+      const res = await axios.get(`/api/rankings/competition/${compId}`);
+      setCompRanking(res.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingComp(false);
+    }
+  };
+
+  const handleSelectCompetition = (comp) => {
+    if (selectedComp?.id === comp.id) {
+      setSelectedComp(null);
+      setCompRanking([]);
+    } else {
+      setSelectedComp(comp);
+      fetchCompetitionRanking(comp.id);
     }
   };
 
@@ -45,27 +98,24 @@ export default function Rankings() {
         </h1>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6">
-          <button
-            onClick={() => setActiveTab('general')}
-            className={`px-4 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'general'
-                ? 'bg-primary-500 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            Ranking Geral
-          </button>
-          <button
-            onClick={() => setActiveTab('history')}
-            className={`px-4 py-2 rounded-xl font-semibold transition-all ${
-              activeTab === 'history'
-                ? 'bg-primary-500 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-            }`}
-          >
-            Minhas Participações
-          </button>
+        <div className="flex gap-2 mb-6 flex-wrap">
+          {[
+            { key: 'general', label: 'Ranking Geral' },
+            { key: 'competitions', label: 'Por Competição' },
+            { key: 'history', label: 'Minhas Participações' }
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2 rounded-xl font-semibold transition-all ${
+                activeTab === tab.key
+                  ? 'bg-primary-500 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {loading ? (
@@ -109,6 +159,85 @@ export default function Rankings() {
                         <p className="text-xs text-gray-400">acertos</p>
                       </div>
                     </motion.div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {activeTab === 'competitions' && (
+              <div className="space-y-2">
+                {competitions.length === 0 ? (
+                  <div className="card text-center text-gray-400">
+                    Nenhuma competição finalizada ainda
+                  </div>
+                ) : (
+                  competitions.map((comp, i) => (
+                    <div key={comp.id}>
+                      <motion.div
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className={`card cursor-pointer transition-all ${
+                          selectedComp?.id === comp.id ? 'ring-2 ring-primary-500' : ''
+                        }`}
+                        onClick={() => handleSelectCompetition(comp)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex-1">
+                            <p className="font-semibold">{comp.title}</p>
+                            <p className="text-xs text-gray-400">
+                              Código: {comp.code} · {comp.participants_count} participantes · {comp.finished_at ? new Date(comp.finished_at).toLocaleDateString('pt-BR') : ''}
+                            </p>
+                          </div>
+                          <span className={`text-sm transition-all ${selectedComp?.id === comp.id ? 'rotate-180' : ''}`}>
+                            ▼
+                          </span>
+                        </div>
+                      </motion.div>
+
+                      <AnimatePresence>
+                        {selectedComp?.id === comp.id && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="ml-4 mt-1 space-y-1">
+                              {loadingComp ? (
+                                <div className="text-center py-4">
+                                  <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-primary-500 mx-auto"></div>
+                                </div>
+                              ) : compRanking.length === 0 ? (
+                                <div className="card text-center text-gray-500 text-sm py-3">
+                                  Nenhum participante
+                                </div>
+                              ) : (
+                                compRanking.map((p, j) => (
+                                  <div
+                                    key={p.user_id}
+                                    className={`flex items-center gap-3 rounded-xl px-4 py-2 ${
+                                      p.user_id === user?.id
+                                        ? 'bg-primary-500/10 border border-primary-500/20'
+                                        : 'bg-gray-800/50'
+                                    }`}
+                                  >
+                                    <span className="text-sm font-bold w-6 text-center">
+                                      {j === 0 ? '🥇' : j === 1 ? '🥈' : j === 2 ? '🥉' : `${j + 1}°`}
+                                    </span>
+                                    <span className={`flex-1 text-sm font-medium ${p.user_id === user?.id ? 'text-primary-400' : ''}`}>
+                                      {p.name}
+                                    </span>
+                                    <span className="text-sm text-gray-400">{p.correct_answers}/{p.total_answered}</span>
+                                    <span className="text-sm font-bold text-primary-400">{p.score} pts</span>
+                                  </div>
+                                ))
+                              )}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   ))
                 )}
               </div>
