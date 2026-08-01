@@ -276,6 +276,17 @@ export default function QuestionManager() {
         {activeTab === 'list' && (
           <>
             <div className="flex gap-2 mb-4 flex-wrap">
+              <button
+                onClick={() => setFilter({ ...filter, approved: filter.approved === 'false' ? '' : 'false' })}
+                className={`px-3 py-2 rounded-xl text-sm font-semibold transition-all ${
+                  filter.approved === 'false'
+                    ? 'bg-yellow-500 text-white'
+                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                }`}
+                title="Mostrar apenas perguntas aguardando aprovação"
+              >
+                ⏳ Aguardando aprovação
+              </button>
               <input
                 type="text"
                 value={filter.search}
