@@ -149,6 +149,25 @@ router.post('/', auth, adminOnly, async (req, res) => {
   }
 });
 
+router.put('/bulk', auth, adminOnly, async (req, res) => {
+  try {
+    const { ids, approved } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'Nenhuma pergunta selecionada' });
+    }
+
+    const [affected] = await Question.update(
+      { approved: approved === true },
+      { where: { id: { [Op.in]: ids } } }
+    );
+
+    res.json({ message: `${affected} perguntas atualizadas`, count: affected });
+  } catch (error) {
+    console.error('Erro ao atualizar perguntas em lote:', error);
+    res.status(500).json({ error: 'Erro ao atualizar perguntas em lote' });
+  }
+});
+
 router.get('/:id', auth, async (req, res) => {
   try {
     const question = await Question.findByPk(req.params.id);

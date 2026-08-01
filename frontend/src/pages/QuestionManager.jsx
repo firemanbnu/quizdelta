@@ -122,6 +122,24 @@ export default function QuestionManager() {
     }
   };
 
+  const handleBulkStatus = async (approved) => {
+    if (questions.length === 0) {
+      setMessage('Nenhuma pergunta exibida pelo filtro atual');
+      return;
+    }
+    if (!confirm(`${approved ? 'Aprovar' : 'Desaprovar'} ${questions.length} pergunta(s) exibida(s)?`)) return;
+    try {
+      await axios.put('/api/questions/bulk', {
+        ids: questions.map((q) => q.id),
+        approved
+      });
+      setMessage(`${questions.length} pergunta(s) ${approved ? 'aprovada(s)' : 'desaprovada(s)'}!`);
+      fetchQuestions();
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Erro ao atualizar em lote');
+    }
+  };
+
   const parseQuestionsFromText = (text) => {
     const separator = /\n?\*{4,}\n?/;
     const blocks = text.split(separator).filter(b => b.trim());
@@ -294,6 +312,20 @@ export default function QuestionManager() {
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
+              <button
+                onClick={() => handleBulkStatus(true)}
+                className="px-3 py-2 rounded-xl text-sm font-semibold bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all"
+                title="Aprovar em lote as perguntas exibidas"
+              >
+                ✓ Aprovar exibidas
+              </button>
+              <button
+                onClick={() => handleBulkStatus(false)}
+                className="px-3 py-2 rounded-xl text-sm font-semibold bg-yellow-500/20 text-yellow-400 hover:bg-yellow-500/30 transition-all"
+                title="Desaprovar em lote as perguntas exibidas"
+              >
+                ✕ Desaprovar exibidas
+              </button>
             </div>
 
             {loading ? (
