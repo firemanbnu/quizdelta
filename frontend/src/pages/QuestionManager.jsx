@@ -6,9 +6,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 export default function QuestionManager() {
   const navigate = useNavigate();
   const [questions, setQuestions] = useState([]);
+  const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('list');
-  const [filter, setFilter] = useState({ category: '', difficulty: '', approved: '' });
+  const [filter, setFilter] = useState({ category: '', difficulty: '', approved: '', search: '' });
   const [showForm, setShowForm] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState(null);
   const [form, setForm] = useState({
@@ -30,6 +31,18 @@ export default function QuestionManager() {
   }, [filter]);
 
   useEffect(() => {
+    const fetchCategories = async () => {
+      try {
+        const res = await axios.get('/api/questions/categories');
+        setCategories(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchCategories();
+  }, []);
+
+  useEffect(() => {
     if (highlightedId && listRef.current) {
       const el = listRef.current.querySelector(`[data-question-id="${highlightedId}"]`);
       if (el) {
@@ -46,6 +59,7 @@ export default function QuestionManager() {
       if (filter.category) params.category = filter.category;
       if (filter.difficulty) params.difficulty = filter.difficulty;
       if (filter.approved) params.approved = filter.approved;
+      if (filter.search) params.search = filter.search;
       const res = await axios.get('/api/questions/all', { params });
       setQuestions(res.data);
     } catch (err) {
@@ -244,6 +258,13 @@ export default function QuestionManager() {
         {activeTab === 'list' && (
           <>
             <div className="flex gap-2 mb-4 flex-wrap">
+              <input
+                type="text"
+                value={filter.search}
+                onChange={(e) => setFilter({ ...filter, search: e.target.value })}
+                placeholder="Buscar por título da pergunta..."
+                className="input text-sm flex-1 min-w-40"
+              />
               <select
                 value={filter.approved}
                 onChange={(e) => setFilter({ ...filter, approved: e.target.value })}
@@ -262,6 +283,16 @@ export default function QuestionManager() {
                 <option value="facil">Fácil</option>
                 <option value="medio">Médio</option>
                 <option value="dificil">Difícil</option>
+              </select>
+              <select
+                value={filter.category}
+                onChange={(e) => setFilter({ ...filter, category: e.target.value })}
+                className="input text-sm"
+              >
+                <option value="">Todos os grupos</option>
+                {categories.map((cat) => (
+                  <option key={cat} value={cat}>{cat}</option>
+                ))}
               </select>
             </div>
 

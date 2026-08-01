@@ -1,4 +1,5 @@
 const express = require('express');
+const { Op } = require('sequelize');
 const Question = require('../models/Question');
 const { auth, adminOnly } = require('../middleware/auth');
 
@@ -29,7 +30,16 @@ router.get('/', auth, async (req, res) => {
 
 router.get('/all', auth, adminOnly, async (req, res) => {
   try {
+    const { category, difficulty, approved, search } = req.query;
+    const where = {};
+
+    if (category) where.category = category;
+    if (difficulty) where.difficulty = difficulty;
+    if (approved !== undefined) where.approved = approved === 'true';
+    if (search) where.text = { [Op.iLike]: `%${search}%` };
+
     const questions = await Question.findAll({
+      where,
       order: [['createdAt', 'DESC']]
     });
     res.json(questions);
@@ -40,8 +50,9 @@ router.get('/all', auth, adminOnly, async (req, res) => {
 
 router.get('/categories', auth, async (req, res) => {
   try {
+    const where = req.user.role !== 'admin' ? { approved: true } : {};
     const questions = await Question.findAll({
-      where: { approved: true },
+      where,
       attributes: ['category'],
       group: ['category']
     });
