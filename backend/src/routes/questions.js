@@ -99,7 +99,7 @@ router.post('/import', auth, adminOnly, async (req, res) => {
         category: q.category || category || 'Importado',
         difficulty: q.difficulty || 'medio',
         source: 'pdf',
-        approved: true,
+        approved: false,
         created_by: req.user.id
       });
       saved.push(question);
@@ -138,7 +138,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
       category: category || 'Geral',
       difficulty: difficulty || 'medio',
       source: 'manual',
-      approved: true,
+      approved: false,
       created_by: req.user.id
     });
 

@@ -78,7 +78,7 @@ export default function QuestionManager() {
         setMessage('Pergunta atualizada!');
       } else {
         await axios.post('/api/questions', form);
-        setMessage('Pergunta criada!');
+        setMessage('Pergunta criada! Aguardando aprovação.');
       }
       resetForm();
       setActiveTab('list');
@@ -272,7 +272,7 @@ export default function QuestionManager() {
               >
                 <option value="">Todos os status</option>
                 <option value="true">Aprovadas</option>
-                <option value="false">Pendentes</option>
+                <option value="false">Aguardando aprovação</option>
               </select>
               <select
                 value={filter.difficulty}
@@ -329,7 +329,7 @@ export default function QuestionManager() {
                               }`}
                               title={q.approved ? 'Clique para desaprovar' : 'Clique para aprovar'}
                             >
-                              {q.approved ? 'Aprovada' : 'Pendente'}
+                              {q.approved ? 'Aprovada' : 'Aguardando aprovação'}
                             </span>
                             <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">
                               {q.category}
