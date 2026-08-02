@@ -24,7 +24,6 @@ export default function QuestionManager() {
   const [message, setMessage] = useState('');
   const [importCategory, setImportCategory] = useState('Importado');
   const [highlightedId, setHighlightedId] = useState(null);
-  const [aiCorrecting, setAiCorrecting] = useState(false);
   const listRef = useRef(null);
 
   useEffect(() => {
@@ -138,31 +137,6 @@ export default function QuestionManager() {
       fetchQuestions();
     } catch (err) {
       setMessage(err.response?.data?.error || 'Erro ao atualizar em lote');
-    }
-  };
-
-  const handleAiCorrect = async () => {
-    if (questions.length === 0) {
-      setMessage('Nenhuma pergunta exibida pelo filtro atual para avaliar');
-      return;
-    }
-    if (!confirm(`O sistema vai avaliar ${questions.length} pergunta(s) e selecionar a opção correta de cada uma automaticamente. Continuar?`)) return;
-    try {
-      setAiCorrecting(true);
-      setMessage('');
-      const res = await axios.post('/api/questions/ai-correct', {
-        category: filter.category || undefined,
-        difficulty: filter.difficulty || undefined,
-        approved: filter.approved || undefined,
-        search: filter.search || undefined
-      });
-      const d = res.data;
-      setMessage(`🤖 ${d.message}`);
-      await fetchQuestions();
-    } catch (err) {
-      setMessage(err.response?.data?.error || 'Erro ao avaliar perguntas com IA');
-    } finally {
-      setAiCorrecting(false);
     }
   };
 
@@ -362,14 +336,6 @@ export default function QuestionManager() {
                 title="Desaprovar em lote as perguntas exibidas"
               >
                 ✕ Desaprovar exibidas
-              </button>
-              <button
-                onClick={handleAiCorrect}
-                disabled={aiCorrecting}
-                className="px-3 py-2 rounded-xl text-sm font-semibold bg-purple-500/20 text-purple-400 hover:bg-purple-500/30 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                title="O sistema avalia cada pergunta exibida e seleciona a opção correta automaticamente"
-              >
-                {aiCorrecting ? '⏳ Avaliando com IA...' : '🤖 Avaliar respostas com IA'}
               </button>
             </div>
 

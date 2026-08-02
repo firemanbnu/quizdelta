@@ -2,7 +2,6 @@ const express = require('express');
 const { Op } = require('sequelize');
 const Question = require('../models/Question');
 const { auth, adminOnly } = require('../middleware/auth');
-const { evaluateQuestions } = require('../services/aiEvaluator');
 
 const router = express.Router();
 
@@ -166,43 +165,6 @@ router.put('/bulk', auth, adminOnly, async (req, res) => {
   } catch (error) {
     console.error('Erro ao atualizar perguntas em lote:', error);
     res.status(500).json({ error: 'Erro ao atualizar perguntas em lote' });
-  }
-});
-
-router.post('/ai-correct', auth, adminOnly, async (req, res) => {
-  try {
-    const { category, difficulty, approved, search } = req.body || {};
-    const where = {};
-
-    if (category) where.category = category;
-    if (difficulty) where.difficulty = difficulty;
-    if (approved !== undefined && approved !== '') where.approved = approved === true || approved === 'true';
-    if (search) where.text = { [Op.iLike]: `%${search}%` };
-
-    const questions = await Question.findAll({
-      where,
-      order: [['createdAt', 'ASC']]
-    });
-
-    if (questions.length === 0) {
-      return res.json({
-        total: 0,
-        evaluated: 0,
-        updated: 0,
-        unchanged: 0,
-        failed: 0,
-        errors: [],
-        message: 'Nenhuma pergunta encontrada para avaliar'
-      });
-    }
-
-    const results = await evaluateQuestions(questions);
-    results.message = `Avaliação concluída: ${results.evaluated} pergunta(s) avaliada(s), ${results.updated} atualizada(s), ${results.unchanged} já correta(s)` +
-      (results.failed ? `, ${results.failed} sem avaliação` : '');
-    res.json(results);
-  } catch (error) {
-    console.error('Erro ao avaliar perguntas com IA:', error);
-    res.status(500).json({ error: error.message || 'Erro ao avaliar perguntas com IA' });
   }
 });
 
