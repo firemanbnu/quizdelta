@@ -18,6 +18,7 @@ export default function Training() {
   const [totalAnswered, setTotalAnswered] = useState(0);
   const [sessionQuestions, setSessionQuestions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadingQuestions, setLoadingQuestions] = useState(false);
   const [sessionStarted, setSessionStarted] = useState(false);
   const [lastResult, setLastResult] = useState(null);
   const [startTime, setStartTime] = useState(null);
@@ -45,14 +46,16 @@ export default function Training() {
 
   const fetchQuestions = async () => {
     try {
+      setLoadingQuestions(true);
+      const count = questionCount > 0 ? questionCount : totalAvailable;
       const params = {};
       if (selectedCategories.length > 0) {
         params.categories = selectedCategories.join(',');
       }
-      params.limit = questionCount;
+      params.limit = count;
       const res = await axios.get('/api/questions/training', { params });
       const shuffled = res.data.questions.sort(() => Math.random() - 0.5);
-      setSessionQuestions(shuffled.slice(0, Math.min(questionCount, shuffled.length)));
+      setSessionQuestions(shuffled.slice(0, Math.min(count, shuffled.length)));
       setSessionId(res.data.sessionId);
       setCurrentIndex(0);
       setScore(0);
@@ -63,6 +66,8 @@ export default function Training() {
       setStartTime(Date.now());
     } catch (err) {
       console.error(err);
+    } finally {
+      setLoadingQuestions(false);
     }
   };
 
@@ -79,8 +84,9 @@ export default function Training() {
   };
 
   const handleStartSession = () => {
-    if (selectedCategories.length === 0) return;
+    if (selectedCategories.length === 0 || totalAvailable === 0) return;
     setSessionStarted(true);
+    fetchQuestions();
   };
 
   const handleAnswer = async (index) => {
@@ -241,6 +247,14 @@ export default function Training() {
             </button>
           </motion.div>
         </div>
+      </div>
+    );
+  }
+
+  if (loadingQuestions) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-950">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary-500"></div>
       </div>
     );
   }
