@@ -357,15 +357,24 @@ export default function QuestionManager() {
               </button>
             </div>
 
-            {loading ? (
+            <div className="mb-3 flex items-center gap-2 rounded-xl bg-gray-800/60 border border-gray-700 px-4 py-3">
+              <span className="text-2xl">📊</span>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-white">
+                  {questions.length} {questions.length === 1 ? 'pergunta encontrada' : 'perguntas encontradas'}
+                </p>
+                <p className="text-xs text-gray-400">
+                  com o filtro aplicado
+                </p>
+              </div>
+              <span className="text-2xl font-bold text-primary-400">
+                {questions.length}
+              </span>
+            </div>
+
+            {loading && (
               <div className="text-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500 mx-auto"></div>
-              </div>
-            ) : (
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm text-gray-400">
-                  {questions.length} {questions.length === 1 ? 'pergunta listada' : 'perguntas listadas'}
-                </p>
               </div>
             )}
             {!loading && (
