@@ -10,11 +10,12 @@ export default function Dashboard() {
   const [joinCode, setJoinCode] = useState('');
   const [competitions, setCompetitions] = useState([]);
   const [lastFinished, setLastFinished] = useState(null);
+  const [categories, setCategories] = useState([]);
   const [newCompetition, setNewCompetition] = useState({
     title: '',
     total_questions: 10,
     time_per_question: 30,
-    category: ''
+    categories: []
   });
   const [showCreate, setShowCreate] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -23,7 +24,48 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchCompetitions();
+    fetchCategories();
   }, []);
+
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get('/api/questions/category-stats');
+      setCategories(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openCreateModal = () => {
+    setNewCompetition((prev) => ({
+      ...prev,
+      categories: categories.map((c) => c.name)
+    }));
+    setShowCreate(true);
+  };
+
+  const toggleCategory = (name) => {
+    setNewCompetition((prev) => {
+      const selected = prev.categories.includes(name)
+        ? prev.categories.filter((c) => c !== name)
+        : [...prev.categories, name];
+      return { ...prev, categories: selected };
+    });
+  };
+
+  const toggleAllCategories = () => {
+    setNewCompetition((prev) => ({
+      ...prev,
+      categories: prev.categories.length === categories.length
+        ? []
+        : categories.map((c) => c.name)
+    }));
+  };
+
+  const selectedCount = newCompetition.categories.reduce((acc, name) => {
+    const cat = categories.find((c) => c.name === name);
+    return acc + (cat ? cat.count : 0);
+  }, 0);
 
   const fetchCompetitions = async () => {
     try {
@@ -179,7 +221,7 @@ export default function Dashboard() {
                 <p className="text-gray-400 text-sm mb-4">
                   Crie uma nova competição e compartilhe o código com os participantes.
                 </p>
-                <button onClick={() => setShowCreate(true)} className="btn-primary w-full">
+                <button onClick={() => openCreateModal()} className="btn-primary w-full">
                   Nova Competição
                 </button>
               </motion.div>
@@ -302,12 +344,15 @@ export default function Dashboard() {
                   <label className="text-sm text-gray-400 mb-1 block">Número de perguntas</label>
                   <input
                     type="number"
-                    min="5"
-                    max="50"
+                    min="1"
+                    max={selectedCount || 1}
                     value={newCompetition.total_questions}
                     onChange={(e) => setNewCompetition({ ...newCompetition, total_questions: parseInt(e.target.value) })}
                     className="input w-full"
                   />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {selectedCount} pergunta(s) disponível(eis) nos grupos selecionados
+                  </p>
                 </div>
                 <div>
                   <label className="text-sm text-gray-400 mb-1 block">Tempo por pergunta (segundos)</label>
@@ -320,13 +365,50 @@ export default function Dashboard() {
                     className="input w-full"
                   />
                 </div>
-                <input
-                  type="text"
-                  placeholder="Categoria (opcional)"
-                  value={newCompetition.category}
-                  onChange={(e) => setNewCompetition({ ...newCompetition, category: e.target.value })}
-                  className="input w-full"
-                />
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-sm text-gray-400 block">Grupos de Perguntas</label>
+                    <button
+                      type="button"
+                      onClick={toggleAllCategories}
+                      className="text-xs text-primary-400 hover:text-primary-300"
+                    >
+                      {newCompetition.categories.length === categories.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                    </button>
+                  </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                    {categories.map((cat) => {
+                      const checked = newCompetition.categories.includes(cat.name);
+                      return (
+                        <button
+                          key={cat.name}
+                          type="button"
+                          onClick={() => toggleCategory(cat.name)}
+                          className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center gap-3 ${
+                            checked
+                              ? 'border-primary-500/60 bg-primary-500/10'
+                              : 'border-gray-700 bg-gray-800/50 hover:border-gray-500'
+                          }`}
+                        >
+                          <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs shrink-0 ${
+                            checked ? 'bg-primary-500 border-primary-500 text-white' : 'border-gray-500'
+                          }`}>
+                            {checked && '✓'}
+                          </div>
+                          <span className="flex-1 font-semibold">{cat.name}</span>
+                          <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">
+                            {cat.count}
+                          </span>
+                        </button>
+                      );
+                    })}
+                    {categories.length === 0 && (
+                      <p className="text-gray-500 text-sm">
+                        Nenhuma categoria disponível. Adicione perguntas primeiro.
+                      </p>
+                    )}
+                  </div>
+                </div>
                 {error && <p className="text-red-400 text-sm text-center">{error}</p>}
                 <div className="flex gap-2">
                   <button type="button" onClick={() => setShowCreate(false)} className="btn-secondary flex-1">

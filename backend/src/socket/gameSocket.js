@@ -2,8 +2,8 @@ const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
 const Competition = require('../models/Competition');
 const CompetitionParticipant = require('../models/CompetitionParticipant');
-const Question = require('../models/Question');
 const Answer = require('../models/Answer');
+const { pickQuestions } = require('../services/questionPicker');
 
 const rooms = new Map();
 
@@ -20,11 +20,12 @@ function calculatePoints(responseTimeMs, timeLimitMs, isCorrect) {
 
 async function getSelectedQuestions(competition) {
   const where = { approved: true };
-  if (competition.category) where.category = competition.category;
+  const categories = competition.categories && competition.categories.length
+    ? competition.categories
+    : (competition.category ? [competition.category] : []);
+  if (categories.length) where.category = { [require('sequelize').Op.in]: categories };
 
-  const allQuestions = await Question.findAll({ where });
-  const shuffled = allQuestions.sort(() => Math.random() - 0.5);
-  return shuffled.slice(0, competition.total_questions);
+  return pickQuestions(where, competition.total_questions);
 }
 
 function scheduleNextQuestion(io, code, room, delayMs = 2000) {
@@ -192,7 +193,8 @@ function initSocket(io) {
             totalQuestions: competition.total_questions,
             timePerQuestion: competition.time_per_question,
             currentQuestionIndex: room.currentQuestionIndex,
-            category: competition.category
+            category: competition.category,
+            categories: competition.categories || []
           },
           participants: allParticipants.map(p => ({
             id: p.user.id,
@@ -272,7 +274,7 @@ function initSocket(io) {
           return callback({ error: 'Já respondeu esta pergunta' });
         }
 
-        const question = await Question.findByPk(questionId);
+        const question = room.questions.find(q => q.id === questionId);
         if (!question) {
           return callback({ error: 'Pergunta não encontrada' });
         }

@@ -140,6 +140,17 @@ export default function QuestionManager() {
     }
   };
 
+  const handleRemoveDuplicates = async () => {
+    if (!confirm('Remover perguntas duplicadas (mesmo texto)? Isso excluirá as cópias, mantendo uma de cada.')) return;
+    try {
+      const res = await axios.delete('/api/questions/duplicates');
+      setMessage(res.data.message);
+      fetchQuestions();
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Erro ao remover duplicatas');
+    }
+  };
+
   const parseQuestionsFromText = (text) => {
     const separator = /\n?\*{4,}\n?/;
     const blocks = text.split(separator).filter(b => b.trim());
@@ -336,6 +347,13 @@ export default function QuestionManager() {
                 title="Desaprovar em lote as perguntas exibidas"
               >
                 ✕ Desaprovar exibidas
+              </button>
+              <button
+                onClick={handleRemoveDuplicates}
+                className="px-3 py-2 rounded-xl text-sm font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                title="Remover perguntas com texto duplicado, mantendo apenas uma"
+              >
+                🧹 Remover duplicatas
               </button>
             </div>
 

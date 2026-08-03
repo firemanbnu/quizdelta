@@ -1,6 +1,9 @@
 const express = require('express');
 const { Op } = require('sequelize');
+const sequelize = require('../database');
 const Question = require('../models/Question');
+const { pickQuestions, findDuplicateIds } = require('../services/questionPicker');
+const { createTrainingSession } = require('../services/trainingSessions');
 const { auth, adminOnly } = require('../middleware/auth');
 
 const router = express.Router();
@@ -63,19 +66,41 @@ router.get('/categories', auth, async (req, res) => {
   }
 });
 
+router.get('/category-stats', auth, async (req, res) => {
+  try {
+    const where = req.user.role !== 'admin' ? { approved: true } : {};
+    const rows = await Question.findAll({
+      where,
+      attributes: ['category', [sequelize.fn('COUNT', sequelize.col('category')), 'count']],
+      group: ['category'],
+      raw: true
+    });
+    const stats = rows
+      .map(r => ({ name: r.category, count: Number(r.count) }))
+      .filter(r => r.name);
+    res.json(stats);
+  } catch (error) {
+    res.status(500).json({ error: 'Erro ao buscar estatísticas de categorias' });
+  }
+});
+
 router.get('/training', auth, async (req, res) => {
   try {
-    const { category } = req.query;
+    const { category, categories, limit } = req.query;
     const where = { approved: true };
     if (category) where.category = category;
+    if (categories) {
+      const list = categories.split(',').map(c => c.trim()).filter(Boolean);
+      if (list.length) where.category = { [Op.in]: list };
+    }
 
-    const questions = await Question.findAll({
-      where,
-      order: [['createdAt', 'DESC']]
-    });
+    const parsedLimit = limit ? parseInt(limit, 10) : undefined;
+    const questions = await pickQuestions(where, parsedLimit > 0 ? parsedLimit : undefined);
+    const sessionId = createTrainingSession(req.user.id, questions);
 
-    res.json(questions);
+    res.json({ sessionId, questions });
   } catch (error) {
+    console.error('Erro ao buscar perguntas de treino:', error);
     res.status(500).json({ error: 'Erro ao buscar perguntas de treino' });
   }
 });
@@ -200,6 +225,20 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
     res.json(question);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao atualizar pergunta' });
+  }
+});
+
+router.delete('/duplicates', auth, adminOnly, async (req, res) => {
+  try {
+    const ids = await findDuplicateIds();
+    if (ids.length === 0) {
+      return res.json({ message: 'Nenhuma pergunta duplicada encontrada', count: 0 });
+    }
+    await Question.destroy({ where: { id: { [Op.in]: ids } } });
+    res.json({ message: `${ids.length} perguntas duplicadas removidas`, count: ids.length });
+  } catch (error) {
+    console.error('Erro ao remover duplicatas:', error);
+    res.status(500).json({ error: 'Erro ao remover duplicatas' });
   }
 });
 

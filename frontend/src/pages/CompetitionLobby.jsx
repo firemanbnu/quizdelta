@@ -96,7 +96,11 @@ export default function CompetitionLobby() {
             {competition?.title || 'Competição'}
           </h1>
           <p className="text-gray-400 text-sm">
-            {competition?.category ? `Categoria: ${competition.category}` : 'Todas as categorias'}
+            {competition?.categories?.length
+              ? competition.categories.join(' · ')
+              : competition?.category
+              ? `Categoria: ${competition.category}`
+              : 'Todas as categorias'}
           </p>
         </div>
 

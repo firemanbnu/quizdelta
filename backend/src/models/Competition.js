@@ -45,6 +45,11 @@ const Competition = sequelize.define('Competition', {
     type: DataTypes.STRING,
     allowNull: true
   },
+  categories: {
+    type: DataTypes.JSON,
+    allowNull: true,
+    defaultValue: []
+  },
   started_at: {
     type: DataTypes.DATE,
     allowNull: true

@@ -7,9 +7,10 @@ import { motion } from 'framer-motion';
 export default function Training() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [questions, setQuestions] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedCategories, setSelectedCategories] = useState([]);
+  const [questionCount, setQuestionCount] = useState(10);
+  const [sessionId, setSessionId] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [answered, setAnswered] = useState(false);
@@ -25,16 +26,11 @@ export default function Training() {
     fetchCategories();
   }, []);
 
-  useEffect(() => {
-    if (sessionStarted) {
-      fetchQuestions();
-    }
-  }, [selectedCategory, sessionStarted]);
-
   const fetchCategories = async () => {
     try {
-      const res = await axios.get('/api/questions/categories');
+      const res = await axios.get('/api/questions/category-stats');
       setCategories(res.data);
+      setSelectedCategories(res.data.map((c) => c.name));
     } catch (err) {
       console.error(err);
     } finally {
@@ -42,13 +38,22 @@ export default function Training() {
     }
   };
 
+  const totalAvailable = selectedCategories.reduce((acc, name) => {
+    const cat = categories.find((c) => c.name === name);
+    return acc + (cat ? cat.count : 0);
+  }, 0);
+
   const fetchQuestions = async () => {
     try {
       const params = {};
-      if (selectedCategory) params.category = selectedCategory;
+      if (selectedCategories.length > 0) {
+        params.categories = selectedCategories.join(',');
+      }
+      params.limit = questionCount;
       const res = await axios.get('/api/questions/training', { params });
-      const shuffled = res.data.sort(() => Math.random() - 0.5);
-      setSessionQuestions(shuffled.slice(0, Math.min(10, shuffled.length)));
+      const shuffled = res.data.questions.sort(() => Math.random() - 0.5);
+      setSessionQuestions(shuffled.slice(0, Math.min(questionCount, shuffled.length)));
+      setSessionId(res.data.sessionId);
       setCurrentIndex(0);
       setScore(0);
       setTotalAnswered(0);
@@ -61,7 +66,20 @@ export default function Training() {
     }
   };
 
+  const toggleCategory = (name) => {
+    setSelectedCategories((prev) =>
+      prev.includes(name) ? prev.filter((c) => c !== name) : [...prev, name]
+    );
+  };
+
+  const toggleAll = () => {
+    setSelectedCategories((prev) =>
+      prev.length === categories.length ? [] : categories.map((c) => c.name)
+    );
+  };
+
   const handleStartSession = () => {
+    if (selectedCategories.length === 0) return;
     setSessionStarted(true);
   };
 
@@ -78,7 +96,8 @@ export default function Training() {
       const res = await axios.post('/api/training/submit', {
         question_id: currentQuestion.id,
         chosen_answer: index,
-        response_time_ms: responseTime
+        response_time_ms: responseTime,
+        session_id: sessionId
       });
 
       setLastResult(res.data);
@@ -116,6 +135,7 @@ export default function Training() {
     setSelectedAnswer(null);
     setAnswered(false);
     setSessionQuestions([]);
+    setSessionId(null);
   };
 
   if (loading) {
@@ -134,39 +154,91 @@ export default function Training() {
             ← Voltar
           </button>
 
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card text-center">
-            <div className="text-5xl mb-4">📚</div>
-            <h1 className="text-2xl font-bold mb-2">Modo Treinamento</h1>
-            <p className="text-gray-400 mb-6">
-              Pratique no seu ritmo. Escolha uma categoria ou treine com todas.
-            </p>
-
-            <div className="space-y-3 mb-6">
-              <button
-                onClick={() => { setSelectedCategory(''); handleStartSession(); }}
-                className="w-full p-4 rounded-xl border-2 border-gray-700 bg-gray-800/50 hover:border-primary-500/50 hover:bg-gray-800 transition-all text-left"
-              >
-                <p className="font-semibold">Todas as Categorias</p>
-                <p className="text-sm text-gray-400">Perguntas aleatórias de todas as categorias</p>
-              </button>
-
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => { setSelectedCategory(cat); handleStartSession(); }}
-                  className="w-full p-4 rounded-xl border-2 border-gray-700 bg-gray-800/50 hover:border-primary-500/50 hover:bg-gray-800 transition-all text-left"
-                >
-                  <p className="font-semibold">{cat}</p>
-                  <p className="text-sm text-gray-400">Focado em {cat}</p>
-                </button>
-              ))}
-
-              {categories.length === 0 && (
-                <p className="text-gray-500 text-sm">
-                  Nenhuma pergunta disponível. Peça ao admin para adicionar perguntas.
-                </p>
-              )}
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="card">
+            <div className="text-center mb-6">
+              <div className="text-5xl mb-4">📚</div>
+              <h1 className="text-2xl font-bold mb-2">Modo Treinamento</h1>
+              <p className="text-gray-400">
+                Escolha os grupos de perguntas e quantas questões quer treinar.
+              </p>
             </div>
+
+            <div className="mb-6">
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-semibold text-gray-400">
+                  Grupos de Perguntas
+                </label>
+                <button
+                  type="button"
+                  onClick={toggleAll}
+                  className="text-xs text-primary-400 hover:text-primary-300"
+                >
+                  {selectedCategories.length === categories.length ? 'Desmarcar todos' : 'Selecionar todos'}
+                </button>
+              </div>
+
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+                {categories.map((cat) => {
+                  const checked = selectedCategories.includes(cat.name);
+                  return (
+                    <button
+                      key={cat.name}
+                      type="button"
+                      onClick={() => toggleCategory(cat.name)}
+                      className={`w-full p-3 rounded-xl border-2 transition-all text-left flex items-center gap-3 ${
+                        checked
+                          ? 'border-primary-500/60 bg-primary-500/10'
+                          : 'border-gray-700 bg-gray-800/50 hover:border-gray-500'
+                      }`}
+                    >
+                      <div className={`w-5 h-5 rounded-md border-2 flex items-center justify-center text-xs shrink-0 ${
+                        checked ? 'bg-primary-500 border-primary-500 text-white' : 'border-gray-500'
+                      }`}>
+                        {checked && '✓'}
+                      </div>
+                      <span className="flex-1 font-semibold">{cat.name}</span>
+                      <span className="text-xs bg-gray-800 text-gray-400 px-2 py-1 rounded-full">
+                        {cat.count}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {categories.length === 0 && (
+                  <p className="text-gray-500 text-sm">
+                    Nenhuma pergunta disponível. Peça ao admin para adicionar perguntas.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="mb-6">
+              <label className="text-sm font-semibold text-gray-400 block mb-2">
+                Número de perguntas
+              </label>
+              <input
+                type="number"
+                min="1"
+                max={totalAvailable || 1}
+                value={questionCount}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value, 10);
+                  setQuestionCount(isNaN(value) ? 0 : value);
+                }}
+                className="input w-full"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                {totalAvailable} pergunta(s) disponível(eis) nos grupos selecionados
+              </p>
+            </div>
+
+            <button
+              onClick={handleStartSession}
+              disabled={selectedCategories.length === 0 || totalAvailable === 0}
+              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Iniciar Treinamento
+            </button>
           </motion.div>
         </div>
       </div>
@@ -177,7 +249,7 @@ export default function Training() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-950">
         <div className="card text-center max-w-md">
-          <p className="text-gray-400 mb-4">Nenhuma pergunta encontrada para esta categoria.</p>
+          <p className="text-gray-400 mb-4">Nenhuma pergunta encontrada para os grupos selecionados.</p>
           <button onClick={handleNewSession} className="btn-primary">Voltar</button>
         </div>
       </div>

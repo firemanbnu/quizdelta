@@ -1,9 +1,9 @@
 const express = require('express');
-const { QueryTypes } = require('sequelize');
+const { Op, QueryTypes } = require('sequelize');
 const sequelize = require('../database');
 const Competition = require('../models/Competition');
 const CompetitionParticipant = require('../models/CompetitionParticipant');
-const Question = require('../models/Question');
+const { countDistinctQuestions } = require('../services/questionPicker');
 const { auth, adminOnly } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
 
@@ -20,8 +20,16 @@ router.post('/', auth, adminOnly, async (req, res) => {
       total_questions,
       time_per_question,
       negative_score,
-      category
+      category,
+      categories
     } = req.body;
+
+    let selectedCategories = Array.isArray(categories)
+      ? categories.filter(Boolean)
+      : [];
+    if (selectedCategories.length === 0 && category) {
+      selectedCategories = [category];
+    }
 
     let code = generateCode();
     let exists = await Competition.findOne({ where: { code, status: 'waiting' } });
@@ -31,9 +39,15 @@ router.post('/', auth, adminOnly, async (req, res) => {
     }
 
     const where = { approved: true };
-    if (category) where.category = category;
+    if (selectedCategories.length > 0) {
+      where.category = { [Op.in]: selectedCategories };
+    }
 
-    const availableQuestions = await Question.count({ where });
+    const availableQuestions = await countDistinctQuestions(where);
+
+    if (availableQuestions === 0) {
+      return res.status(400).json({ error: 'Nenhuma pergunta disponível nas categorias selecionadas' });
+    }
 
     const competition = await Competition.create({
       code,
@@ -42,7 +56,8 @@ router.post('/', auth, adminOnly, async (req, res) => {
       total_questions: Math.min(total_questions || 10, availableQuestions),
       time_per_question: time_per_question || 30,
       negative_score: negative_score || false,
-      category: category || null
+      category: selectedCategories.length === 1 ? selectedCategories[0] : null,
+      categories: selectedCategories
     });
 
     res.status(201).json(competition);
