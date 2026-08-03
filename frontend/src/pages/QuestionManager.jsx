@@ -362,6 +362,13 @@ export default function QuestionManager() {
                 <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-500 mx-auto"></div>
               </div>
             ) : (
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm text-gray-400">
+                  {questions.length} {questions.length === 1 ? 'pergunta listada' : 'perguntas listadas'}
+                </p>
+              </div>
+            )}
+            {!loading && (
               <div className="space-y-2" ref={listRef}>
                 {questions.length === 0 ? (
                   <div className="card text-center text-gray-400">

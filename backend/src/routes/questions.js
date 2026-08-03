@@ -5,6 +5,7 @@ const Question = require('../models/Question');
 const { pickQuestions, findDuplicateIds } = require('../services/questionPicker');
 const { createTrainingSession } = require('../services/trainingSessions');
 const { auth, adminOnly } = require('../middleware/auth');
+const { applyCategoryRestriction, isAdminOnlyCategory } = require('../config/categories');
 
 const router = express.Router();
 
@@ -17,6 +18,8 @@ router.get('/', auth, async (req, res) => {
     if (difficulty) where.difficulty = difficulty;
     if (approved !== undefined) where.approved = approved === 'true';
     else if (req.user.role !== 'admin') where.approved = true;
+
+    applyCategoryRestriction(where, req.user);
 
     const questions = await Question.findAll({
       where,
@@ -54,6 +57,7 @@ router.get('/all', auth, adminOnly, async (req, res) => {
 router.get('/categories', auth, async (req, res) => {
   try {
     const where = req.user.role !== 'admin' ? { approved: true } : {};
+    applyCategoryRestriction(where, req.user);
     const questions = await Question.findAll({
       where,
       attributes: ['category'],
@@ -69,6 +73,7 @@ router.get('/categories', auth, async (req, res) => {
 router.get('/category-stats', auth, async (req, res) => {
   try {
     const where = req.user.role !== 'admin' ? { approved: true } : {};
+    applyCategoryRestriction(where, req.user);
     const rows = await Question.findAll({
       where,
       attributes: ['category', [sequelize.fn('COUNT', sequelize.col('category')), 'count']],
@@ -93,6 +98,8 @@ router.get('/training', auth, async (req, res) => {
       const list = categories.split(',').map(c => c.trim()).filter(Boolean);
       if (list.length) where.category = { [Op.in]: list };
     }
+
+    applyCategoryRestriction(where, req.user);
 
     const parsedLimit = limit ? parseInt(limit, 10) : undefined;
     const questions = await pickQuestions(where, parsedLimit > 0 ? parsedLimit : undefined);
@@ -197,6 +204,9 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const question = await Question.findByPk(req.params.id);
     if (!question) {
+      return res.status(404).json({ error: 'Pergunta não encontrada' });
+    }
+    if (req.user.role !== 'admin' && isAdminOnlyCategory(question.category)) {
       return res.status(404).json({ error: 'Pergunta não encontrada' });
     }
     res.json(question);
