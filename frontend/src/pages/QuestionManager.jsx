@@ -158,19 +158,32 @@ export default function QuestionManager() {
     const questions = [];
     let number = 0;
 
+    const ANSWER_KEY_PATTERN = /(?:resposta|gabarito|resp\.?|gab\.?)\s*[:\-=]?\s*(?:correta\s*[:\-=]?\s*)?(?:letra\s*)?\(?([a-dA-D])\)?/i;
+    const isMarkedCorrect = (line) =>
+      /[\*✓✔☑]|\([xX]\)|\[[xX]\]|\(certa\)|\(correta\)|\(gabarito\)|correta|gabarito/i.test(line);
+
     for (const block of blocks) {
       const lines = block.split('\n').map(l => l.trim()).filter(l => l);
       if (lines.length < 2) continue;
 
       let questionText = '';
       const options = [];
-      let correctAnswer = 0;
+      let correctAnswer = -1;
 
       for (const line of lines) {
-        const optionMatch = line.match(/^([A-Da-d])[\.\)]\s*(.+)/);
-        if (optionMatch) {
-          options.push(optionMatch[2].trim());
-          if (line.includes('*') || line.includes('✓') || line.includes('(certa)') || line.includes('(correta)')) {
+        const keyMatch = line.match(ANSWER_KEY_PATTERN);
+        if (keyMatch) {
+          correctAnswer = keyMatch[1].toUpperCase().charCodeAt(0) - 65;
+          continue;
+        }
+
+        const optionMatch = line.match(/^\(?([A-Da-d])\)?[\.\):]\s*(.+)/);
+        const strippedOptionMatch = !optionMatch
+          ? line.replace(/^\*{1,2}\s*/, '').match(/^\(?([A-Da-d])\)?[\.\):]\s*(.+)/)
+          : null;
+        if (optionMatch || strippedOptionMatch) {
+          options.push((optionMatch || strippedOptionMatch)[2].trim());
+          if (correctAnswer < 0 && isMarkedCorrect(line)) {
             correctAnswer = options.length - 1;
           }
         } else if (options.length === 0) {
@@ -185,7 +198,7 @@ export default function QuestionManager() {
           number,
           text: questionText,
           options: options.length >= 4 ? options.slice(0, 4) : [...options, ...Array(4 - options.length).fill('')],
-          correct_answer: correctAnswer < options.length ? correctAnswer : 0,
+          correct_answer: correctAnswer >= 0 && correctAnswer < options.length ? correctAnswer : 0,
           category: importCategory,
           difficulty: 'medio',
           source: 'pdf'

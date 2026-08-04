@@ -124,10 +124,13 @@ router.post('/import', auth, adminOnly, async (req, res) => {
     for (const q of questions) {
       if (!q.text || !q.options || q.options.length < 2) continue;
 
+      let correctAnswer = Number.isInteger(q.correct_answer) ? q.correct_answer : 0;
+      if (correctAnswer < 0 || correctAnswer >= q.options.length) correctAnswer = 0;
+
       const question = await Question.create({
         text: q.text,
         options: q.options,
-        correct_answer: q.correct_answer || 0,
+        correct_answer: correctAnswer,
         category: q.category || category || 'Importado',
         difficulty: q.difficulty || 'medio',
         source: 'pdf',
