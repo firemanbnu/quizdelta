@@ -2,6 +2,7 @@ const express = require('express');
 const { Op } = require('sequelize');
 const sequelize = require('../database');
 const Question = require('../models/Question');
+const { Answer, TrainingSession, UserCategory } = require('../models');
 const { pickQuestions, findDuplicateIds } = require('../services/questionPicker');
 const { createTrainingSession } = require('../services/trainingSessions');
 const { auth, adminOnly } = require('../middleware/auth');
@@ -255,6 +256,34 @@ router.delete('/duplicates', auth, adminOnly, async (req, res) => {
   } catch (error) {
     console.error('Erro ao remover duplicatas:', error);
     res.status(500).json({ error: 'Erro ao remover duplicatas' });
+  }
+});
+
+router.delete('/category/:name', auth, adminOnly, async (req, res) => {
+  try {
+    const category = req.params.name;
+
+    const rows = await Question.findAll({
+      where: { category },
+      attributes: ['id']
+    });
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Grupo não encontrado' });
+    }
+
+    const questionIds = rows.map((q) => q.id);
+
+    await Answer.destroy({ where: { question_id: { [Op.in]: questionIds } } });
+    await TrainingSession.destroy({ where: { question_id: { [Op.in]: questionIds } } });
+    await UserCategory.destroy({ where: { category } });
+    await Question.destroy({ where: { category } });
+
+    res.json({
+      message: `Grupo "${category}" removido com ${questionIds.length} pergunta(s)`
+    });
+  } catch (error) {
+    console.error('Erro ao remover grupo de perguntas:', error);
+    res.status(500).json({ error: 'Erro ao remover grupo de perguntas' });
   }
 });
 

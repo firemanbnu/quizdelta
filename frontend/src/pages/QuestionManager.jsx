@@ -30,15 +30,16 @@ export default function QuestionManager() {
     fetchQuestions();
   }, [filter]);
 
+  const fetchCategories = async () => {
+    try {
+      const res = await axios.get('/api/questions/categories');
+      setCategories(res.data);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const res = await axios.get('/api/questions/categories');
-        setCategories(res.data);
-      } catch (err) {
-        console.error(err);
-      }
-    };
     fetchCategories();
   }, []);
 
@@ -151,8 +152,23 @@ export default function QuestionManager() {
     }
   };
 
+  const handleDeleteCategory = async () => {
+    const category = filter.category;
+    if (!category) return;
+    if (!confirm(`Excluir todo o grupo "${category}"?\n\nIsso removerá todas as perguntas deste grupo e o acesso dos jogadores a ele. Esta ação não pode ser desfeita.`)) return;
+    try {
+      const res = await axios.delete(`/api/questions/category/${encodeURIComponent(category)}`);
+      setMessage(res.data.message);
+      setFilter({ ...filter, category: '' });
+      await fetchCategories();
+      fetchQuestions();
+    } catch (err) {
+      setMessage(err.response?.data?.error || 'Erro ao excluir grupo');
+    }
+  };
+
   const parseQuestionsFromText = (text) => {
-    const separator = /\n?\*{4,}\n?/;
+    const separator = /\n\s*\n/;
     const blocks = text.split(separator).filter(b => b.trim());
 
     const questions = [];
@@ -171,6 +187,8 @@ export default function QuestionManager() {
       let correctAnswer = -1;
 
       for (const line of lines) {
+        if (/^[\*\-_=]{3,}\s*$/.test(line)) continue;
+
         const keyMatch = line.match(ANSWER_KEY_PATTERN);
         if (keyMatch) {
           correctAnswer = keyMatch[1].toUpperCase().charCodeAt(0) - 65;
@@ -217,7 +235,7 @@ export default function QuestionManager() {
 
     const parsed = parseQuestionsFromText(inputText);
     if (parsed.length === 0) {
-      setMessage('Nenhuma pergunta encontrada. Verifique o formato: perguntas separadas por ****');
+      setMessage('Nenhuma pergunta encontrada. Verifique o formato: perguntas separadas por linha em branco');
       return;
     }
 
@@ -347,6 +365,15 @@ export default function QuestionManager() {
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
+              {filter.category && (
+                <button
+                  onClick={handleDeleteCategory}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
+                  title="Excluir todas as perguntas deste grupo"
+                >
+                  🗑 Excluir grupo
+                </button>
+              )}
               <button
                 onClick={() => handleBulkStatus(true)}
                 className="px-3 py-2 rounded-xl text-sm font-semibold bg-green-500/20 text-green-400 hover:bg-green-500/30 transition-all"
@@ -562,7 +589,7 @@ export default function QuestionManager() {
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="card">
               <h2 className="text-xl font-bold mb-4">📋 Importar Perguntas</h2>
               <p className="text-gray-400 text-sm mb-4">
-                Cole o texto com as perguntas abaixo. Separe cada pergunta com uma linha de asterísticos (****).
+                Cole o texto com as perguntas abaixo. Separe cada pergunta com uma linha em branco.
               </p>
 
               <div className="bg-gray-800/50 rounded-xl p-3 mb-4">
@@ -573,8 +600,6 @@ A. São Paulo
 B. Rio de Janeiro
 C. Brasília
 D. Salvador
-
-****
 
 2. Qual é o maior planeta?
 A. Terra
