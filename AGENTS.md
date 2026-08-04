@@ -4,6 +4,7 @@ Notas de contexto e pendências do projeto **Quiz Delta** (frontend: Vercel `est
 
 ## PENDENTE — destravar criação de competições no Render
 
+- **Status:** implementado em `backend/src/ensureSchema.js` (chamado no startup em `server.js`), aguardando **deploy no Render**.
 - **Sintoma:** `POST /api/competitions` retorna 500 "Erro ao criar competição" no Render; funciona localmente.
 - **Causa:** schema do PostgreSQL no Render desatualizado. `sequelize.sync()` só cria tabelas novas, NÃO adiciona colunas em tabelas existentes. Faltam colunas em:
   - `competitions`: `categories`, `started_at`, `current_question_index`, `negative_score`, `finished_at`
@@ -11,7 +12,7 @@ Notas de contexto e pendências do projeto **Quiz Delta** (frontend: Vercel `est
   - `answers`: `chosen_answer`, `is_correct`, `response_time_ms`, `points_earned`
   - `questions`: `approved`, `options`, `source`, `source_file`, `difficulty`, `correct_answer`
   - `training_sessions`: `chosen_answer`, `is_correct`, `response_time_ms`, `category`
-- **Solução combinada com o usuário:** script idempotente no startup (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` para todas as colunas acima), roda no próximo deploy, não apaga dados. Aplicar NA PRÓXIMA SESSÃO.
+- **Solução aplicada:** script idempotente no startup (`ALTER TABLE ... ADD COLUMN IF NOT EXISTS` para todas as colunas acima), roda em cada boot, não apaga dados. Validado com mock (23 statements gerados corretamente).
 - **Histórico:** correção anterior foi revertida por pedido do usuário (2x); a autorização para aplicar foi dada apenas depois, agendada para esta pendência.
 
 ## Outras pendências lembradas

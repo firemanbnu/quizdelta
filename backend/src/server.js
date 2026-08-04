@@ -5,6 +5,7 @@ const cors = require('cors');
 require('dotenv').config();
 
 const { sequelize } = require('./models');
+const { ensureSchema } = require('./ensureSchema');
 const { initSocket } = require('./socket/gameSocket');
 
 const authRoutes = require('./routes/auth');
@@ -52,6 +53,7 @@ async function start() {
     await sequelize.authenticate();
     console.log('Conectado ao banco de dados');
 
+    await ensureSchema();
     await sequelize.sync();
     console.log('Tabelas sincronizadas');
 
