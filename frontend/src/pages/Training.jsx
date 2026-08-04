@@ -359,7 +359,6 @@ export default function Training() {
               const isSelected = selectedAnswer === index;
               const correctIdx = lastResult ? lastResult.correct_answer : currentQuestion.correct_answer;
               const isCorrect = answered && index === correctIdx;
-              const isWrong = isSelected && answered && index !== correctIdx;
 
               return (
                 <motion.button
@@ -371,8 +370,6 @@ export default function Training() {
                   className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
                     isCorrect
                       ? 'border-green-500 bg-green-500/10 text-green-400'
-                      : isWrong
-                      ? 'border-red-500 bg-red-500/10 text-red-400'
                       : isSelected
                       ? 'border-primary-500 bg-primary-500/10'
                       : answered

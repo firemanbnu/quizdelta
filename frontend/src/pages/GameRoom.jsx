@@ -227,7 +227,6 @@ export default function GameRoom() {
                 {question.options.map((option, index) => {
                   const isSelected = selectedAnswer === index;
                   const isCorrect = result && index === result.correctAnswer;
-                  const isWrong = isSelected && result && !result.isCorrect;
 
                   return (
                     <motion.button
@@ -239,8 +238,6 @@ export default function GameRoom() {
                       className={`text-left p-4 rounded-xl border-2 transition-all duration-300 ${
                         isCorrect
                           ? 'border-green-500 bg-green-500/10 text-green-400'
-                          : isWrong
-                          ? 'border-red-500 bg-red-500/10 text-red-400'
                           : isSelected
                           ? 'border-primary-500 bg-primary-500/10'
                           : answered
