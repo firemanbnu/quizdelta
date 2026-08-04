@@ -32,7 +32,8 @@ function toPlain(q) {
     options: q.options,
     correct_answer: q.correct_answer,
     category: q.category,
-    difficulty: q.difficulty
+    difficulty: q.difficulty,
+    image_url: q.image_url || null
   };
 }
 

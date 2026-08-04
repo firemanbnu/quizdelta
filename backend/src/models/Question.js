@@ -41,6 +41,10 @@ const Question = sequelize.define('Question', {
     type: DataTypes.BOOLEAN,
     defaultValue: false
   },
+  image_url: {
+    type: DataTypes.STRING,
+    allowNull: true
+  },
   created_by: {
     type: DataTypes.INTEGER,
     allowNull: true

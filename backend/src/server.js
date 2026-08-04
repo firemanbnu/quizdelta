@@ -7,6 +7,7 @@ require('dotenv').config();
 const { sequelize } = require('./models');
 const { ensureSchema } = require('./ensureSchema');
 const { initSocket } = require('./socket/gameSocket');
+const { getUploadsDir } = require('./config/uploadsDir');
 
 const authRoutes = require('./routes/auth');
 const questionRoutes = require('./routes/questions');
@@ -30,6 +31,7 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(getUploadsDir()));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/questions', questionRoutes);

@@ -20,6 +20,7 @@ const COLUMNS = [
   { table: 'questions', column: 'source_file', type: 'TEXT' },
   { table: 'questions', column: 'difficulty', type: 'TEXT', def: "'medio'" },
   { table: 'questions', column: 'correct_answer', type: 'INTEGER' },
+  { table: 'questions', column: 'image_url', type: 'TEXT' },
   { table: 'training_sessions', column: 'chosen_answer', type: 'INTEGER' },
   { table: 'training_sessions', column: 'is_correct', type: 'BOOLEAN', def: 'false' },
   { table: 'training_sessions', column: 'response_time_ms', type: 'INTEGER', def: '0' },

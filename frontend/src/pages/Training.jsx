@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { getImageUrl } from '../imageUrl';
 
 export default function Training() {
   const { user } = useAuth();
@@ -353,6 +354,14 @@ export default function Training() {
           <h2 className="text-lg font-bold mb-6 leading-relaxed">
             {currentQuestion.text}
           </h2>
+
+          {currentQuestion.image_url && (
+            <img
+              src={getImageUrl(currentQuestion.image_url)}
+              alt=""
+              className="w-full max-h-80 object-contain rounded-xl border border-gray-700 mb-6"
+            />
+          )}
 
           <div className="space-y-3">
             {currentQuestion.options.map((option, index) => {

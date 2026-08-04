@@ -152,7 +152,7 @@ router.post('/import', auth, adminOnly, async (req, res) => {
 
 router.post('/', auth, adminOnly, async (req, res) => {
   try {
-    const { text, options, correct_answer, category, difficulty } = req.body;
+    const { text, options, correct_answer, category, difficulty, image_url } = req.body;
 
     if (!text || !options || correct_answer === undefined) {
       return res.status(400).json({ error: 'Texto, opções e resposta correta são obrigatórios' });
@@ -174,6 +174,7 @@ router.post('/', auth, adminOnly, async (req, res) => {
       difficulty: difficulty || 'medio',
       source: 'manual',
       approved: false,
+      image_url: image_url || null,
       created_by: req.user.id
     });
 
@@ -228,7 +229,7 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
       return res.status(404).json({ error: 'Pergunta não encontrada' });
     }
 
-    const { text, options, correct_answer, category, difficulty, approved } = req.body;
+    const { text, options, correct_answer, category, difficulty, approved, image_url } = req.body;
 
     if (text !== undefined) question.text = text;
     if (options !== undefined) question.options = options;
@@ -236,6 +237,7 @@ router.put('/:id', auth, adminOnly, async (req, res) => {
     if (category !== undefined) question.category = category;
     if (difficulty !== undefined) question.difficulty = difficulty;
     if (approved !== undefined) question.approved = approved;
+    if (image_url !== undefined) question.image_url = image_url;
 
     await question.save();
     res.json(question);

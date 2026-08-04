@@ -25,3 +25,9 @@ Notas de contexto e pendências do projeto **Quiz Delta** (frontend: Vercel `est
 - Backend local: rodando na porta 3111 (processo `node src/server.js` em `C:\Users\micha\quizdelta\backend`). Para subir com outro banco, exige `DATABASE_URL`.
 - Feature já implementada (committed): Painel de Permissões — rota `GET/PUT /api/users` (admin), model/tabela `UserCategory`, página `frontend/src/pages/AdminPanel.jsx` em `/admin`, novos usuários nascem com `role: player`.
 - Restrição por categoria em `backend/src/config/categories.js` (`applyCategoryRestriction`) usa `req.user.allowedCategories`, anexado no middleware `auth`.
+
+## Imagens nas perguntas — disco persistente no Render
+
+- **Status:** implementado (coluna `questions.image_url`, rota `POST /api/upload/image`, estático em `/uploads`, exibição no gerenciador/treino/competição). **PENDENTE de configurar o disco no Render** para as imagens não sumirem em redeploys.
+- **Configuração no Render (dashboard):** Web Service do backend → **Disks** → criar disco com mount path `/var/data/uploads` (default usa `UPLOADS_DIR`; se montar em outro path, criar env var `UPLOADS_DIR` apontando para ele).
+- Código: `backend/src/config/uploadsDir.js` resolve `UPLOADS_DIR` (default `backend/uploads`). Sem `UPLOADS_DIR` as imagens ficam no filesystem efêmero e somem em redeploy.
