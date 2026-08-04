@@ -9,16 +9,23 @@ function isAdminOnlyCategory(category) {
 function applyCategoryRestriction(where, user) {
   if (!user || user.role === 'admin') return where;
 
+  const allowed = Array.isArray(user.allowedCategories) ? user.allowedCategories.filter(Boolean) : [];
+  const available = allowed.filter((c) => !isAdminOnlyCategory(c));
+
+  if (available.length === 0) {
+    where.category = { [Op.in]: [] };
+    return where;
+  }
+
   const { category } = where;
   if (category !== undefined) {
     if (category && category[Op.in]) {
-      const list = category[Op.in].filter((c) => !isAdminOnlyCategory(c));
-      where.category = { [Op.in]: list };
-    } else if (isAdminOnlyCategory(category)) {
-      where.category = { [Op.in]: [] };
+      where.category = { [Op.in]: category[Op.in].filter((c) => available.includes(c)) };
+    } else if (typeof category === 'string') {
+      where.category = available.includes(category) ? { [Op.in]: [category] } : { [Op.in]: [] };
     }
   } else {
-    where.category = { [Op.notIn]: ADMIN_ONLY_CATEGORIES };
+    where.category = { [Op.in]: available };
   }
   return where;
 }

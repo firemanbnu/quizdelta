@@ -247,6 +247,24 @@ export default function Dashboard() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.55 }}
+                className="card cursor-pointer hover:border-accent-500/50 transition-all"
+                onClick={() => navigate('/admin')}
+              >
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <span className="text-2xl">👥</span> Permissões
+                </h2>
+                <p className="text-gray-400 text-sm">
+                  Controle quem é admin e quais bancos de perguntas cada usuário pode acessar.
+                </p>
+                <div className="mt-4 text-accent-400 font-semibold">
+                  Gerenciar →
+                </div>
+              </motion.div>
+
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.6 }}
                 className="card"
               >

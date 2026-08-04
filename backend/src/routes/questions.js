@@ -209,8 +209,11 @@ router.get('/:id', auth, async (req, res) => {
     if (!question) {
       return res.status(404).json({ error: 'Pergunta não encontrada' });
     }
-    if (req.user.role !== 'admin' && isAdminOnlyCategory(question.category)) {
-      return res.status(404).json({ error: 'Pergunta não encontrada' });
+    if (req.user.role !== 'admin') {
+      const allowed = req.user.allowedCategories || [];
+      if (isAdminOnlyCategory(question.category) || !allowed.includes(question.category)) {
+        return res.status(404).json({ error: 'Pergunta não encontrada' });
+      }
     }
     res.json(question);
   } catch (error) {

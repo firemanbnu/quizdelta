@@ -18,12 +18,11 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email já cadastrado' });
     }
 
-    const firstUser = await User.count() === 0;
     const user = await User.create({
       name,
       email,
       password_hash: password,
-      role: firstUser ? 'admin' : 'player'
+      role: 'player'
     });
 
     const token = jwt.sign(

@@ -4,6 +4,7 @@ const Competition = require('./Competition');
 const CompetitionParticipant = require('./CompetitionParticipant');
 const Answer = require('./Answer');
 const TrainingSession = require('./TrainingSession');
+const UserCategory = require('./UserCategory');
 const sequelize = require('../database');
 
 User.hasMany(Competition, { foreignKey: 'host_id', as: 'hostedCompetitions' });
@@ -33,6 +34,9 @@ TrainingSession.belongsTo(Question, { foreignKey: 'question_id', as: 'question' 
 User.hasMany(Question, { foreignKey: 'created_by', as: 'createdQuestions' });
 Question.belongsTo(User, { foreignKey: 'created_by', as: 'creator' });
 
+User.hasMany(UserCategory, { foreignKey: 'user_id', as: 'userCategories' });
+UserCategory.belongsTo(User, { foreignKey: 'user_id', as: 'user' });
+
 module.exports = {
   sequelize,
   User,
@@ -40,5 +44,6 @@ module.exports = {
   Competition,
   CompetitionParticipant,
   Answer,
-  TrainingSession
+  TrainingSession,
+  UserCategory
 };

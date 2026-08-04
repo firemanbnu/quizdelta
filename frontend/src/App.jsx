@@ -9,6 +9,7 @@ import GameRoom from './pages/GameRoom';
 import Training from './pages/Training';
 import Rankings from './pages/Rankings';
 import QuestionManager from './pages/QuestionManager';
+import AdminPanel from './pages/AdminPanel';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -51,6 +52,7 @@ function AppRoutes() {
       <Route path="/training" element={<ProtectedRoute><Training /></ProtectedRoute>} />
       <Route path="/rankings" element={<ProtectedRoute><Rankings /></ProtectedRoute>} />
       <Route path="/questions" element={<AdminRoute><QuestionManager /></AdminRoute>} />
+      <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
       <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
     </Routes>
   );

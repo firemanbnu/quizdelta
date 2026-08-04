@@ -14,6 +14,7 @@ const rankingRoutes = require('./routes/rankings');
 const uploadRoutes = require('./routes/upload');
 const aiRoutes = require('./routes/ai');
 const trainingRoutes = require('./routes/training');
+const userRoutes = require('./routes/users');
 
 const app = express();
 const server = http.createServer(app);
@@ -36,6 +37,7 @@ app.use('/api/rankings', rankingRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/ai', aiRoutes);
 app.use('/api/training', trainingRoutes);
+app.use('/api/users', userRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });

@@ -53,6 +53,7 @@ User.prototype.toSafeJSON = function () {
     name: this.name,
     email: this.email,
     role: this.role,
+    allowedCategories: this.allowedCategories || [],
     createdAt: this.createdAt
   };
 };

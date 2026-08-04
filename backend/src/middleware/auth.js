@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const UserCategory = require('../models/UserCategory');
 
 const auth = async (req, res, next) => {
   try {
@@ -15,6 +16,12 @@ const auth = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ error: 'Usuário não encontrado' });
     }
+
+    const categoryRows = await UserCategory.findAll({
+      where: { user_id: user.id },
+      attributes: ['category']
+    });
+    user.allowedCategories = categoryRows.map((row) => row.category);
 
     req.user = user;
     next();
