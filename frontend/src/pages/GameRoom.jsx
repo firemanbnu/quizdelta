@@ -3,7 +3,6 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getImageUrl } from '../imageUrl';
 
 export default function GameRoom() {
   const { code } = useParams();
@@ -223,14 +222,6 @@ export default function GameRoom() {
               <h2 className="text-xl font-bold mb-6 leading-relaxed">
                 {question.text}
               </h2>
-
-              {question.imageUrl && (
-                <img
-                  src={getImageUrl(question.imageUrl)}
-                  alt=""
-                  className="w-full max-h-80 object-contain rounded-xl border border-gray-700 mb-6"
-                />
-              )}
 
               <div className="grid sm:grid-cols-2 gap-3">
                 {question.options.map((option, index) => {

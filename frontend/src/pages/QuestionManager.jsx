@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { getImageUrl } from '../imageUrl';
 
 export default function QuestionManager() {
   const navigate = useNavigate();
@@ -18,10 +17,8 @@ export default function QuestionManager() {
     options: ['', '', '', ''],
     correct_answer: 0,
     category: '',
-    difficulty: 'medio',
-    image_url: ''
+    difficulty: 'medio'
   });
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [inputText, setInputText] = useState('');
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState('');
@@ -101,27 +98,9 @@ export default function QuestionManager() {
       options: q.options,
       correct_answer: q.correct_answer,
       category: q.category,
-      difficulty: q.difficulty,
-      image_url: q.image_url || ''
+      difficulty: q.difficulty
     });
     setShowForm(true);
-  };
-
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const fd = new FormData();
-    fd.append('image', file);
-    setUploadingImage(true);
-    try {
-      const res = await axios.post('/api/upload/image', fd);
-      setForm({ ...form, image_url: res.data.url });
-    } catch (err) {
-      setMessage(err.response?.data?.error || 'Erro ao enviar imagem');
-    } finally {
-      setUploadingImage(false);
-      e.target.value = '';
-    }
   };
 
   const handleDelete = async (id) => {
@@ -264,8 +243,7 @@ export default function QuestionManager() {
       options: ['', '', '', ''],
       correct_answer: 0,
       category: '',
-      difficulty: 'medio',
-      image_url: ''
+      difficulty: 'medio'
     });
     setEditingQuestion(null);
     setShowForm(false);
@@ -455,13 +433,6 @@ export default function QuestionManager() {
                             </span>
                           </div>
                           <p className="font-semibold text-sm mb-2 line-clamp-2">{q.text}</p>
-                          {q.image_url && (
-                            <img
-                              src={getImageUrl(q.image_url)}
-                              alt=""
-                              className="w-full max-w-xs h-28 object-cover rounded-lg border border-gray-700 mb-2"
-                            />
-                          )}
                           <div className="flex flex-wrap gap-1">
                             {q.options?.map((opt, i) => (
                               <span key={i} className={`text-xs px-2 py-1 rounded-lg ${
@@ -528,53 +499,6 @@ export default function QuestionManager() {
                 className="input w-full h-24 resize-none"
                 required
               />
-
-              <div className="rounded-xl border border-gray-700 bg-gray-800/40 p-4">
-                <label className="block text-sm font-semibold text-gray-400 mb-2">
-                  Imagem da pergunta (opcional)
-                </label>
-                {form.image_url ? (
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={getImageUrl(form.image_url)}
-                      alt="Pré-visualização"
-                      className="w-32 h-24 object-cover rounded-lg border border-gray-700"
-                    />
-                    <div className="flex flex-col gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setForm({ ...form, image_url: '' })}
-                        className="px-3 py-2 rounded-lg bg-red-500/20 text-red-400 hover:bg-red-500/30 text-sm"
-                      >
-                        Remover imagem
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => document.getElementById('question-image-input')?.click()}
-                        className="px-3 py-2 rounded-lg bg-gray-700 text-gray-300 hover:bg-gray-600 text-sm"
-                      >
-                        Trocar imagem
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById('question-image-input')?.click()}
-                    disabled={uploadingImage}
-                    className="w-full p-6 rounded-xl border-2 border-dashed border-gray-700 text-gray-400 hover:border-primary-500/50 hover:text-primary-400 transition-all disabled:opacity-50"
-                  >
-                    {uploadingImage ? 'Enviando imagem...' : '📷 Clique para enviar uma imagem (JPG, PNG, GIF, WebP)'}
-                  </button>
-                )}
-                <input
-                  id="question-image-input"
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </div>
 
               <div className="grid sm:grid-cols-2 gap-3">
                 {form.options.map((opt, i) => (

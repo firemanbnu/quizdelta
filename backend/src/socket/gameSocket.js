@@ -59,7 +59,6 @@ function sendQuestion(io, code, room) {
     options: question.options,
     category: question.category,
     difficulty: question.difficulty,
-    imageUrl: question.image_url || null,
     questionNumber: room.currentQuestionIndex + 1,
     totalQuestions: room.totalQuestions,
     timeLimit: room.timePerQuestion
