@@ -1,6 +1,7 @@
 const sequelize = require('./database');
 
 const COLUMNS = [
+  { table: 'users', column: 'must_change_password', type: 'BOOLEAN', def: 'false' },
   { table: 'competitions', column: 'categories', type: 'JSON' },
   { table: 'competitions', column: 'started_at', type: 'TIMESTAMP' },
   { table: 'competitions', column: 'current_question_index', type: 'INTEGER', def: '0' },
@@ -34,19 +35,6 @@ async function ensureSchema() {
       { raw: true }
     );
   }
-
-  await sequelize.query(
-    `CREATE TABLE IF NOT EXISTS "password_resets" (
-      "id" SERIAL PRIMARY KEY,
-      "user_id" INTEGER NOT NULL,
-      "code_hash" VARCHAR(255) NOT NULL,
-      "expires_at" TIMESTAMP NOT NULL,
-      "used_at" TIMESTAMP,
-      "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
-      "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
-    )`,
-    { raw: true }
-  );
 
   console.log('Schema garantido: colunas adicionadas se ausentes');
 }

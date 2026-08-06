@@ -172,13 +172,17 @@ router.get('/last-finished', auth, async (req, res) => {
         cp.total_answered,
         cp.score,
         CASE WHEN cp.total_answered > 0
+          THEN ROUND((cp.score::numeric / cp.total_answered), 2)::float
+          ELSE 0
+        END as media,
+        CASE WHEN cp.total_answered > 0
           THEN ROUND((cp.correct_answers::float / cp.total_answered) * 100, 1)
           ELSE 0
         END as accuracy
       FROM competition_participants cp
       JOIN users u ON u.id = cp.user_id
       WHERE cp.competition_id = :competitionId
-      ORDER BY cp.correct_answers DESC, cp.score DESC
+      ORDER BY media DESC, cp.correct_answers DESC, cp.score DESC
     `, {
       replacements: { competitionId: competition.id },
       type: QueryTypes.SELECT

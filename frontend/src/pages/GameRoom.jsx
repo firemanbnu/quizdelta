@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useSocket } from '../contexts/SocketContext';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 
 export default function GameRoom() {
   const { code } = useParams();
@@ -21,11 +21,16 @@ export default function GameRoom() {
   const [totalQuestions, setTotalQuestions] = useState(0);
   const timerRef = useRef(null);
   const questionStartTime = useRef(null);
+  const questionRef = useRef(null);
+  const answeredRef = useRef(false);
 
   useEffect(() => {
     if (!socket || !connected) return;
 
     socket.on('new-question', (data) => {
+      if (timerRef.current) clearInterval(timerRef.current);
+      questionRef.current = data;
+      answeredRef.current = false;
       setQuestion(data);
       setSelectedAnswer(null);
       setAnswered(false);
@@ -35,28 +40,17 @@ export default function GameRoom() {
       setTotalQuestions(data.totalQuestions);
       questionStartTime.current = Date.now();
 
-      if (timerRef.current) clearInterval(timerRef.current);
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 1) {
+          const next = prev - 1;
+          if (next <= 0) {
             clearInterval(timerRef.current);
+            handleTimeout();
             return 0;
           }
-          return prev - 1;
+          return next;
         });
       }, 1000);
-    });
-
-    socket.on('question-timeout', (data) => {
-      if (!answered) {
-        setAnswered(true);
-        setResult({
-          isCorrect: false,
-          correctAnswer: data.correctAnswer,
-          points: 0
-        });
-      }
-      updateScoreboard();
     });
 
     socket.on('competition-finished', (data) => {
@@ -65,11 +59,18 @@ export default function GameRoom() {
       if (timerRef.current) clearInterval(timerRef.current);
     });
 
+    socket.emit('join-room', { code }, (response) => {
+      if (response.error) {
+        setFinished(true);
+        setFinalRanking([]);
+        if (timerRef.current) clearInterval(timerRef.current);
+      }
+    });
+
     updateScoreboard();
 
     return () => {
       socket.off('new-question');
-      socket.off('question-timeout');
       socket.off('competition-finished');
       if (timerRef.current) clearInterval(timerRef.current);
     };
@@ -84,23 +85,36 @@ export default function GameRoom() {
     });
   };
 
-  const handleAnswer = (index) => {
-    if (answered || !question) return;
-
-    const responseTimeMs = Date.now() - questionStartTime.current;
-    setSelectedAnswer(index);
-    setAnswered(true);
-
+  const submitAnswer = (chosenAnswer, responseTimeMs) => {
+    if (!socket || !questionRef.current) return;
     socket.emit('submit-answer', {
       code,
-      questionId: question.questionId,
-      chosenAnswer: index,
+      questionId: questionRef.current.questionId,
+      chosenAnswer,
       responseTimeMs
     }, (response) => {
       if (response.error) return;
       setResult(response);
       updateScoreboard();
     });
+  };
+
+  const handleTimeout = () => {
+    if (answeredRef.current) return;
+    answeredRef.current = true;
+    setAnswered(true);
+    setSelectedAnswer(null);
+    submitAnswer(null, questionRef.current.timeLimit * 1000);
+  };
+
+  const handleAnswer = (index) => {
+    if (answeredRef.current || !questionRef.current) return;
+    answeredRef.current = true;
+    if (timerRef.current) clearInterval(timerRef.current);
+    const responseTimeMs = Date.now() - questionStartTime.current;
+    setSelectedAnswer(index);
+    setAnswered(true);
+    submitAnswer(index, responseTimeMs);
   };
 
   const handleBackToDashboard = () => {
@@ -148,7 +162,7 @@ export default function GameRoom() {
                 <div className="flex-1 text-left">
                   <p className="font-semibold">{p.name}</p>
                   <p className="text-xs text-gray-400">
-                    {p.correctAnswers}/{p.totalAnswered} ({p.accuracy}%)
+                    {p.correctAnswers}/{p.totalAnswered} ({p.accuracy}%) · média {p.media}
                   </p>
                 </div>
                 <span className="font-bold text-primary-400">{p.score} pts</span>
@@ -266,21 +280,14 @@ export default function GameRoom() {
                   }`}
                 >
                   <p className={`text-lg font-bold ${result.isCorrect ? 'text-green-400' : 'text-red-400'}`}>
-                    {result.isCorrect ? '✓ Correto!' : '✗ Incorreto'}
+                    {result.isCorrect ? '✓ Correto!' : result.points === 0 && !selectedAnswer ? '⏰ Tempo esgotado' : '✗ Incorreto'}
                   </p>
                   <p className="text-gray-400 text-sm mt-1">
-                    +{result.points} pontos
+                    +{result.points} pontos · aguarde a próxima pergunta...
                   </p>
                 </motion.div>
               )}
             </motion.div>
-
-            {/* Auto-advance notice */}
-            {answered && (
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="text-center">
-                <p className="text-gray-500 text-sm">Aguardando os demais participantes...</p>
-              </motion.div>
-            )}
           </div>
 
           {/* Scoreboard */}
@@ -305,7 +312,7 @@ export default function GameRoom() {
                       {p.name}
                     </span>
                     <span className="text-sm font-bold">
-                      {p.correctAnswers}
+                      {p.media}
                     </span>
                   </div>
                 ))}

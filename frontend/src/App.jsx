@@ -10,6 +10,7 @@ import Training from './pages/Training';
 import Rankings from './pages/Rankings';
 import QuestionManager from './pages/QuestionManager';
 import AdminPanel from './pages/AdminPanel';
+import ChangePassword from './pages/ChangePassword';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -21,6 +22,11 @@ function ProtectedRoute({ children }) {
     );
   }
   return user ? children : <Navigate to="/login" />;
+}
+
+function PasswordGate({ children }) {
+  const { user } = useAuth();
+  return user?.mustChangePassword ? <Navigate to="/change-password" /> : children;
 }
 
 function AdminRoute({ children }) {
@@ -46,13 +52,14 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <Login />} />
-      <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
-      <Route path="/lobby/:code" element={<ProtectedRoute><CompetitionLobby /></ProtectedRoute>} />
-      <Route path="/game/:code" element={<ProtectedRoute><GameRoom /></ProtectedRoute>} />
-      <Route path="/training" element={<ProtectedRoute><Training /></ProtectedRoute>} />
-      <Route path="/rankings" element={<ProtectedRoute><Rankings /></ProtectedRoute>} />
-      <Route path="/questions" element={<AdminRoute><QuestionManager /></AdminRoute>} />
-      <Route path="/admin" element={<AdminRoute><AdminPanel /></AdminRoute>} />
+      <Route path="/change-password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />
+      <Route path="/dashboard" element={<ProtectedRoute><PasswordGate><Dashboard /></PasswordGate></ProtectedRoute>} />
+      <Route path="/lobby/:code" element={<ProtectedRoute><PasswordGate><CompetitionLobby /></PasswordGate></ProtectedRoute>} />
+      <Route path="/game/:code" element={<ProtectedRoute><PasswordGate><GameRoom /></PasswordGate></ProtectedRoute>} />
+      <Route path="/training" element={<ProtectedRoute><PasswordGate><Training /></PasswordGate></ProtectedRoute>} />
+      <Route path="/rankings" element={<ProtectedRoute><PasswordGate><Rankings /></PasswordGate></ProtectedRoute>} />
+      <Route path="/questions" element={<AdminRoute><PasswordGate><QuestionManager /></PasswordGate></AdminRoute>} />
+      <Route path="/admin" element={<AdminRoute><PasswordGate><AdminPanel /></PasswordGate></AdminRoute>} />
       <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />
     </Routes>
   );

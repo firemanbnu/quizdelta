@@ -29,11 +29,6 @@ Edite `backend/.env`:
 DATABASE_URL=postgresql://user:password@host:5432/quiz_competition
 JWT_SECRET=sua_chave_secreta_aqui
 OPENAI_API_KEY=sk-sua-chave-openai-aqui  # Opcional
-SMTP_HOST=smtp.gmail.com                # Para "Esqueci a senha" (obrigatório em produção)
-SMTP_PORT=587
-SMTP_USER=seu_email@gmail.com
-SMTP_PASS=sua_senha_de_app
-SMTP_FROM=Saber Delta <seu_email@gmail.com>
 PORT=3001
 ```
 
@@ -73,7 +68,7 @@ npm run dev
 - Treinar individualmente a qualquer momento
 - Ver rankings e histórico de participações
 - Acessar pelo celular ou computador
-- Redefinir a senha esquecida via código enviado por email
+- Ter a senha redefinida pelo administrador (define nova senha no próximo login)
 
 ### Competição
 - Código de 4 dígitos para entrada

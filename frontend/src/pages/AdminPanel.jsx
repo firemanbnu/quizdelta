@@ -65,6 +65,28 @@ export default function AdminPanel() {
 
   const roleLabel = (role) => (role === 'admin' ? 'Admin' : 'Usuário');
 
+  const handleResetPassword = async (target) => {
+    const temp = window.prompt(
+      `Defina uma senha temporária para ${target.name} (mínimo 6 caracteres). O usuário criará uma nova no próximo login.`,
+      '123456'
+    );
+    if (temp === null) return;
+    if (temp.length < 6) {
+      return setMessage({ type: 'error', text: 'A senha temporária deve ter pelo menos 6 caracteres' });
+    }
+    setSavingId(target.id);
+    setMessage({ type: '', text: '' });
+    try {
+      const res = await axios.post(`/api/users/${target.id}/reset-password`, { newPassword: temp });
+      setUsers((prev) => prev.map((u) => (u.id === target.id ? { ...u, mustChangePassword: true } : u)));
+      setMessage({ type: 'success', text: res.data.message });
+    } catch (err) {
+      setMessage({ type: 'error', text: err.response?.data?.error || 'Erro ao resetar senha' });
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-gray-950">
       <div className="max-w-5xl mx-auto px-4 py-8">
@@ -132,6 +154,11 @@ export default function AdminPanel() {
                       }`}>
                         {roleLabel(u.role)}
                       </span>
+                      {u.mustChangePassword && (
+                        <span className="block text-xs text-yellow-400 mt-1 text-right">
+                          ⚠ senha temporária
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -195,7 +222,15 @@ export default function AdminPanel() {
                     </div>
                   </div>
 
-                  <div className="mt-4 flex justify-end">
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button
+                      onClick={() => handleResetPassword(u)}
+                      disabled={savingId === u.id || isSelf}
+                      className="px-5 py-2 text-sm font-semibold rounded-xl border border-yellow-500/40 text-yellow-400 hover:bg-yellow-500/10 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      title={isSelf ? 'Você não pode resetar a própria senha' : 'Redefinir senha (temporária)'}
+                    >
+                      {savingId === u.id ? 'Resetando...' : 'Resetar senha'}
+                    </button>
                     <button
                       onClick={() => handleSave(u)}
                       disabled={savingId === u.id}

@@ -25,6 +25,10 @@ const User = sequelize.define('User', {
   role: {
     type: DataTypes.ENUM('admin', 'player'),
     defaultValue: 'player'
+  },
+  must_change_password: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 }, {
   tableName: 'users',
@@ -53,6 +57,7 @@ User.prototype.toSafeJSON = function () {
     name: this.name,
     email: this.email,
     role: this.role,
+    mustChangePassword: this.must_change_password,
     allowedCategories: this.allowedCategories || [],
     createdAt: this.createdAt
   };

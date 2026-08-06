@@ -1,11 +1,13 @@
 const jwt = require('jsonwebtoken');
-const { v4: uuidv4 } = require('uuid');
+const { Op } = require('sequelize');
 const Competition = require('../models/Competition');
 const CompetitionParticipant = require('../models/CompetitionParticipant');
 const Answer = require('../models/Answer');
+const User = require('../models/User');
 const { pickQuestions } = require('../services/questionPicker');
 
 const rooms = new Map();
+const NEXT_QUESTION_DELAY_MS = 1200;
 
 function getRoom(code) {
   return rooms.get(code);
@@ -18,97 +20,144 @@ function calculatePoints(responseTimeMs, timeLimitMs, isCorrect) {
   return Math.round(maxPoints * (0.5 + 0.5 * timeRatio));
 }
 
+function parseCategories(competition) {
+  let categories = [];
+  if (Array.isArray(competition.categories)) {
+    categories = competition.categories;
+  } else if (typeof competition.categories === 'string') {
+    try {
+      const parsed = JSON.parse(competition.categories);
+      categories = Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      categories = [];
+    }
+  }
+  if (categories.length === 0 && competition.category) {
+    categories = [competition.category];
+  }
+  return categories.filter(Boolean);
+}
+
 async function getSelectedQuestions(competition) {
   const where = { approved: true };
-  const categories = competition.categories && competition.categories.length
-    ? competition.categories
-    : (competition.category ? [competition.category] : []);
-  if (categories.length) where.category = { [require('sequelize').Op.in]: categories };
-
+  const categories = parseCategories(competition);
+  if (categories.length) {
+    where.category = { [Op.in]: categories };
+  }
   return pickQuestions(where, competition.total_questions);
 }
 
-function scheduleNextQuestion(io, code, room, delayMs = 2000) {
-  if (room.timer) clearTimeout(room.timer);
-  room.timer = setTimeout(async () => {
-    if (room.status !== 'active') return;
-    advanceQuestion(io, code, room);
-  }, delayMs);
+function questionPayload(room, index) {
+  const q = room.questions[index];
+  return {
+    questionId: q.id,
+    text: q.text,
+    options: q.options,
+    category: q.category,
+    difficulty: q.difficulty,
+    questionNumber: index + 1,
+    totalQuestions: room.totalQuestions,
+    timeLimit: room.timePerQuestion
+  };
 }
 
-async function advanceQuestion(io, code, room) {
-  room.currentQuestionIndex++;
+async function buildRanking(competitionId) {
+  const participants = await CompetitionParticipant.findAll({
+    where: { competition_id: competitionId },
+    include: [{ model: User, as: 'user', attributes: ['id', 'name'] }]
+  });
 
-  if (room.currentQuestionIndex >= room.totalQuestions) {
-    await finishCompetition(io, code, room);
+  return participants
+    .map((p) => ({
+      id: p.user.id,
+      name: p.user.name,
+      score: p.score,
+      correctAnswers: p.correct_answers,
+      totalAnswered: p.total_answered,
+      media: p.total_answered > 0 ? Math.round((p.score / p.total_answered) * 100) / 100 : 0,
+      accuracy: p.total_answered > 0 ? Math.round((p.correct_answers / p.total_answered) * 100) : 0
+    }))
+    .sort((a, b) =>
+      b.media - a.media ||
+      b.correctAnswers - a.correctAnswers ||
+      b.score - a.score
+    )
+    .map((p, i) => ({ position: i + 1, ...p }));
+}
+
+function sendQuestionToUser(socket, room, index) {
+  socket.emit('new-question', questionPayload(room, index));
+}
+
+function advanceUser(io, code, room, socket) {
+  const state = room.userState.get(socket.user.id);
+  state.index++;
+
+  if (state.index >= room.totalQuestions) {
+    state.done = true;
+    buildRanking(room.competitionId).then((ranking) => {
+      if (room.sockets.has(socket)) {
+        socket.emit('competition-finished', { ranking, cancelled: false });
+      }
+    });
+    checkRoomFinished(io, code, room);
     return;
   }
 
-  room.answers.clear();
-  sendQuestion(io, code, room);
+  const index = state.index;
+  setTimeout(() => {
+    if (
+      room.status === 'active' &&
+      room.sockets.has(socket) &&
+      room.userState.get(socket.user.id)?.index === index
+    ) {
+      sendQuestionToUser(socket, room, index);
+    }
+  }, NEXT_QUESTION_DELAY_MS);
 }
 
-function sendQuestion(io, code, room) {
-  const question = room.questions[room.currentQuestionIndex];
-  room.questionStartTime = Date.now();
-  room.answers.clear();
-
-  io.to(`quiz-${code}`).emit('new-question', {
-    questionId: question.id,
-    text: question.text,
-    options: question.options,
-    category: question.category,
-    difficulty: question.difficulty,
-    questionNumber: room.currentQuestionIndex + 1,
-    totalQuestions: room.totalQuestions,
-    timeLimit: room.timePerQuestion
-  });
-
-  if (room.timer) clearTimeout(room.timer);
-
-  room.timer = setTimeout(async () => {
-    if (room.status === 'active') {
-      const question = room.questions[room.currentQuestionIndex];
-      io.to(`quiz-${code}`).emit('question-timeout', {
-        questionId: question.id,
-        correctAnswer: question.correct_answer
-      });
-      scheduleNextQuestion(io, code, room, 2000);
-    }
-  }, room.timePerQuestion * 1000);
+function checkRoomFinished(io, code, room) {
+  if (room.status !== 'active') return;
+  const remaining = [...room.sockets].filter((s) => !(room.userState.get(s.user.id) || {}).done);
+  if (remaining.length === 0) {
+    finishCompetition(io, code, room, false);
+  }
 }
 
 async function finishCompetition(io, code, room, cancelled = false) {
-  if (room.timer) clearTimeout(room.timer);
-  room.status = 'finished';
+  try {
+    if (room.timer) clearTimeout(room.timer);
+    room.status = 'finished';
 
-  const competition = await Competition.findByPk(room.competitionId);
-  if (competition) {
-    await competition.update({ status: 'finished', finished_at: new Date() });
+    const competition = await Competition.findByPk(room.competitionId);
+    if (competition && competition.status !== 'finished') {
+      await competition.update({ status: 'finished', finished_at: new Date() });
+    }
+
+    const ranking = await buildRanking(room.competitionId);
+
+    for (const socket of room.sockets) {
+      socket.emit('competition-finished', { ranking, cancelled });
+    }
+  } catch (error) {
+    console.error('Erro ao finalizar competição:', error);
+  } finally {
+    rooms.delete(code);
   }
+}
 
-  const participants = await CompetitionParticipant.findAll({
-    where: { competition_id: room.competitionId },
-    include: [{ model: require('../models/User'), as: 'user', attributes: ['id', 'name'] }],
-    order: [['correct_answers', 'DESC'], ['score', 'DESC']]
-  });
-
-  const finalRanking = participants.map((p, i) => ({
-    position: i + 1,
-    id: p.user.id,
-    name: p.user.name,
-    score: p.score,
-    correctAnswers: p.correct_answers,
-    totalAnswered: p.total_answered,
-    accuracy: p.total_answered > 0 ? Math.round((p.correct_answers / p.total_answered) * 100) : 0
-  }));
-
-  io.to(`quiz-${code}`).emit('competition-finished', {
-    ranking: finalRanking,
-    cancelled
-  });
-
-  rooms.delete(code);
+function createRoom(competition) {
+  return {
+    competitionId: competition.id,
+    status: competition.status,
+    timePerQuestion: competition.time_per_question,
+    hostId: competition.host_id,
+    questions: [],
+    totalQuestions: 0,
+    sockets: new Set(),
+    userState: new Map(),
+    timer: null
+  };
 }
 
 function initSocket(io) {
@@ -119,7 +168,6 @@ function initSocket(io) {
         return next(new Error('Autenticação necessária'));
       }
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      const User = require('../models/User');
       const user = await User.findByPk(decoded.id);
       if (!user) return next(new Error('Usuário não encontrado'));
       socket.user = user;
@@ -135,7 +183,7 @@ function initSocket(io) {
     socket.on('join-room', async ({ code }, callback) => {
       try {
         const competition = await Competition.findOne({
-          where: { code, status: { [require('sequelize').Op.in]: ['waiting', 'active'] } }
+          where: { code, status: { [Op.in]: ['waiting', 'active'] } }
         });
 
         if (!competition) {
@@ -157,31 +205,27 @@ function initSocket(io) {
         socket.competitionCode = code;
         socket.competitionId = competition.id;
 
-        if (!rooms.has(code)) {
-          rooms.set(code, {
-            competitionId: competition.id,
-            status: competition.status,
-            currentQuestion: null,
-            currentQuestionIndex: 0,
-            totalQuestions: competition.total_questions,
-            timePerQuestion: competition.time_per_question,
-            negativeScore: competition.negative_score,
-            answers: new Map(),
-            questionStartTime: null,
-            questions: [],
-            timer: null,
-            hostId: competition.host_id,
-            participantCount: 0
-          });
+        let room = rooms.get(code);
+        if (room && room.competitionId !== competition.id) {
+          rooms.delete(code);
+          room = null;
+        }
+        if (!room) {
+          room = createRoom(competition);
+          rooms.set(code, room);
         }
 
-        const room = rooms.get(code);
+        room.sockets.add(socket);
+
+        if (room.status === 'active' && room.questions.length === 0) {
+          room.questions = await getSelectedQuestions(competition);
+          room.totalQuestions = room.questions.length;
+        }
+
         const allParticipants = await CompetitionParticipant.findAll({
           where: { competition_id: competition.id },
-          include: [{ model: require('../models/User'), as: 'user', attributes: ['id', 'name'] }]
+          include: [{ model: User, as: 'user', attributes: ['id', 'name'] }]
         });
-
-        room.participantCount = allParticipants.length;
 
         callback({
           success: true,
@@ -192,9 +236,9 @@ function initSocket(io) {
             status: competition.status,
             totalQuestions: competition.total_questions,
             timePerQuestion: competition.time_per_question,
-            currentQuestionIndex: room.currentQuestionIndex,
+            currentQuestionIndex: room.userState.get(socket.user.id)?.index || 0,
             category: competition.category,
-            categories: competition.categories || []
+            categories: parseCategories(competition)
           },
           participants: allParticipants.map(p => ({
             id: p.user.id,
@@ -211,6 +255,21 @@ function initSocket(io) {
           name: socket.user.name
         });
 
+        if (room.status === 'active' && room.totalQuestions > 0) {
+          const answeredCount = await Answer.count({
+            where: { competition_id: competition.id, user_id: socket.user.id }
+          });
+          const index = Math.min(answeredCount, room.totalQuestions);
+          const state = { index, done: index >= room.totalQuestions };
+          room.userState.set(socket.user.id, state);
+
+          if (state.done) {
+            const ranking = await buildRanking(room.competitionId);
+            socket.emit('competition-finished', { ranking, cancelled: false });
+          } else {
+            sendQuestionToUser(socket, room, index);
+          }
+        }
       } catch (error) {
         console.error('Erro ao entrar na sala:', error);
         callback({ error: 'Erro ao entrar na sala' });
@@ -224,9 +283,14 @@ function initSocket(io) {
           return callback({ error: 'Apenas o host pode iniciar' });
         }
 
-        const competition = await Competition.findByPk(room.competitionId);
+        const competition = await Competition.findOne({ where: { code } });
         if (!competition) {
           return callback({ error: 'Competição não encontrada' });
+        }
+
+        if (room.competitionId !== competition.id) {
+          rooms.delete(code);
+          return callback({ error: 'Sala desatualizada. Saia e entre novamente.' });
         }
 
         const questions = await getSelectedQuestions(competition);
@@ -237,12 +301,14 @@ function initSocket(io) {
         room.questions = questions;
         room.totalQuestions = questions.length;
         room.status = 'active';
-        room.currentQuestionIndex = 0;
+        room.userState.clear();
 
         const allParticipants = await CompetitionParticipant.findAll({
           where: { competition_id: competition.id }
         });
-        room.participantCount = allParticipants.length;
+        for (const p of allParticipants) {
+          room.userState.set(p.user_id, { index: 0, done: false });
+        }
 
         await competition.update({
           status: 'active',
@@ -254,7 +320,10 @@ function initSocket(io) {
           totalQuestions: questions.length
         });
 
-        sendQuestion(io, code, room);
+        for (const sock of room.sockets) {
+          sendQuestionToUser(sock, room, 0);
+        }
+
         callback({ success: true });
       } catch (error) {
         console.error('Erro ao iniciar competição:', error);
@@ -268,29 +337,34 @@ function initSocket(io) {
         if (!room || room.status !== 'active') {
           return callback({ error: 'Competição não ativa' });
         }
-
-        const answerKey = `${socket.user.id}-${questionId}`;
-        if (room.answers.has(answerKey)) {
-          return callback({ error: 'Já respondeu esta pergunta' });
+        if (!room.sockets.has(socket)) {
+          return callback({ error: 'Entre na sala primeiro' });
         }
 
-        const question = room.questions.find(q => q.id === questionId);
-        if (!question) {
-          return callback({ error: 'Pergunta não encontrada' });
+        const state = room.userState.get(socket.user.id);
+        if (!state || state.done) {
+          return callback({ error: 'Você já finalizou' });
+        }
+
+        const question = room.questions[state.index];
+        if (!question || question.id !== questionId) {
+          return callback({ error: 'Pergunta não encontrada ou já respondida' });
+        }
+
+        const existing = await Answer.findOne({
+          where: {
+            competition_id: room.competitionId,
+            user_id: socket.user.id,
+            question_id: questionId
+          }
+        });
+        if (existing) {
+          return callback({ error: 'Você já respondeu esta pergunta' });
         }
 
         const isCorrect = chosenAnswer === question.correct_answer;
         const timeLimit = room.timePerQuestion * 1000;
         const points = calculatePoints(responseTimeMs, timeLimit, isCorrect);
-
-        room.answers.set(answerKey, {
-          userId: socket.user.id,
-          questionId,
-          chosenAnswer,
-          isCorrect,
-          points,
-          responseTimeMs
-        });
 
         await Answer.create({
           competition_id: room.competitionId,
@@ -313,15 +387,7 @@ function initSocket(io) {
           points
         });
 
-        if (room.answers.size >= room.participantCount) {
-          if (room.timer) clearTimeout(room.timer);
-          const question = room.questions[room.currentQuestionIndex];
-          io.to(`quiz-${code}`).emit('question-timeout', {
-            questionId: question.id,
-            correctAnswer: question.correct_answer
-          });
-          scheduleNextQuestion(io, code, room, 2000);
-        }
+        advanceUser(io, code, room, socket);
       } catch (error) {
         console.error('Erro ao enviar resposta:', error);
         callback({ error: 'Erro ao enviar resposta' });
@@ -333,21 +399,7 @@ function initSocket(io) {
         const room = rooms.get(code);
         if (!room) return callback({ error: 'Sala não encontrada' });
 
-        const participants = await CompetitionParticipant.findAll({
-          where: { competition_id: room.competitionId },
-          include: [{ model: require('../models/User'), as: 'user', attributes: ['id', 'name'] }],
-          order: [['score', 'DESC']]
-        });
-
-        const scoreboard = participants.map((p, i) => ({
-          position: i + 1,
-          id: p.user.id,
-          name: p.user.name,
-          score: p.score,
-          correctAnswers: p.correct_answers,
-          totalAnswered: p.total_answered
-        }));
-
+        const scoreboard = await buildRanking(room.competitionId);
         callback(scoreboard);
       } catch (error) {
         callback({ error: 'Erro ao buscar placar' });
@@ -369,7 +421,23 @@ function initSocket(io) {
     });
 
     socket.on('disconnect', () => {
+      const code = socket.competitionCode;
       console.log(`Usuário desconectado: ${socket.user.name}`);
+      if (!code) return;
+      const room = rooms.get(code);
+      if (!room) return;
+
+      room.sockets.delete(socket);
+
+      if (room.sockets.size === 0) {
+        if (room.status === 'active') {
+          finishCompetition(io, code, room, false);
+        } else {
+          rooms.delete(code);
+        }
+      } else {
+        checkRoomFinished(io, code, room);
+      }
     });
   });
 }

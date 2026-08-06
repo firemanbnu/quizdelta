@@ -1,28 +1,36 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 
-export default function Login() {
-  const { login, register } = useAuth();
-  const [isRegister, setIsRegister] = useState(false);
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+export default function ChangePassword() {
+  const { user, changePassword, logout } = useAuth();
+  const navigate = useNavigate();
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  if (user && !user.mustChangePassword) {
+    navigate('/dashboard', { replace: true });
+    return null;
+  }
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
+    if (newPassword.length < 6) {
+      return setError('A senha deve ter pelo menos 6 caracteres');
+    }
+    if (newPassword !== confirmPassword) {
+      return setError('As senhas não coincidem');
+    }
     setLoading(true);
     try {
-      if (isRegister) {
-        await register(name, email, password);
-      } else {
-        await login(email, password);
-      }
+      await changePassword(newPassword);
+      navigate('/dashboard', { replace: true });
     } catch (err) {
-      setError(err.response?.data?.error || 'Erro ao conectar ao servidor');
+      setError(err.response?.data?.error || 'Erro ao alterar senha');
     } finally {
       setLoading(false);
     }
@@ -50,39 +58,28 @@ export default function Login() {
             <span className="text-4xl font-bold text-white transform -rotate-12">Δ</span>
           </motion.div>
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary-400 to-accent-400 bg-clip-text text-transparent">
-            Saber Delta
+            Crie uma nova senha
           </h1>
           <p className="text-gray-400 mt-2">
-            {isRegister ? 'Crie sua conta' : 'Entre na competição'}
+            Olá, {user?.name}! Sua senha foi redefinida por um administrador. Crie uma nova senha para continuar.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {isRegister && (
-            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }}>
-              <input
-                type="text"
-                placeholder="Seu nome"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input w-full"
-                required
-              />
-            </motion.div>
-          )}
           <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="password"
+            placeholder="Nova senha"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
             className="input w-full"
             required
+            minLength={6}
           />
           <input
             type="password"
-            placeholder="Senha"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Confirmar nova senha"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             className="input w-full"
             required
             minLength={6}
@@ -103,16 +100,16 @@ export default function Login() {
             disabled={loading}
             className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {loading ? 'Carregando...' : isRegister ? 'Criar Conta' : 'Entrar'}
+            {loading ? 'Salvando...' : 'Salvar nova senha'}
           </button>
         </form>
 
         <div className="mt-6 text-center">
           <button
-            onClick={() => { setIsRegister(!isRegister); setError(''); }}
-            className="text-primary-400 hover:text-primary-300 text-sm transition-colors"
+            onClick={logout}
+            className="text-gray-500 hover:text-gray-300 text-sm transition-colors"
           >
-            {isRegister ? 'Já tem conta? Entre aqui' : 'Não tem conta? Cadastre-se'}
+            Sair da conta
           </button>
         </div>
       </motion.div>

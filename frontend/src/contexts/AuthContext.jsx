@@ -51,13 +51,9 @@ export function AuthProvider({ children }) {
     return user;
   };
 
-  const requestPasswordReset = async (email) => {
-    const res = await axios.post('/api/auth/forgot-password', { email });
-    return res.data;
-  };
-
-  const resetPassword = async (email, code, password) => {
-    const res = await axios.post('/api/auth/reset-password', { email, code, newPassword: password });
+  const changePassword = async (newPassword) => {
+    const res = await axios.post('/api/auth/change-password', { newPassword });
+    setUser((prev) => (prev ? { ...prev, mustChangePassword: false } : prev));
     return res.data;
   };
 
@@ -69,7 +65,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, requestPasswordReset, resetPassword, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, changePassword, logout }}>
       {children}
     </AuthContext.Provider>
   );

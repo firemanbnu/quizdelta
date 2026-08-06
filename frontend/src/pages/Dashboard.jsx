@@ -299,7 +299,10 @@ export default function Dashboard() {
                             {p.name}
                           </span>
                           <span className="text-gray-400">{p.correct_answers}/{p.total_answered}</span>
-                          <span className="font-bold text-primary-400">{p.score} pts</span>
+                          <span className="text-right">
+                            <span className="font-bold text-primary-400">{Number(p.media).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            <span className="block text-[10px] text-gray-500">média</span>
+                          </span>
                         </div>
                       ))}
                     </div>

@@ -1,8 +1,39 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
+
+function formatMedia(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00';
+}
+
+function MediaSparkline({ values }) {
+  if (values.length < 2) return null;
+  const w = 300;
+  const h = 48;
+  const pad = 4;
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const span = max - min || 1;
+  const pts = values.map((v, i) => {
+    const x = pad + (i * (w - pad * 2)) / (values.length - 1);
+    const y = h - pad - ((v - min) / span) * (h - pad * 2);
+    return [x, y];
+  });
+  const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+  const area = `${line} L${pts[pts.length - 1][0].toFixed(1)},${h} L${pts[0][0].toFixed(1)},${h} Z`;
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-12" preserveAspectRatio="none">
+      <path d={area} fill="rgba(99,102,241,0.15)" />
+      <path d={line} fill="none" stroke="#818cf8" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+      {pts.map((p, i) => (
+        <circle key={i} cx={p[0]} cy={p[1]} r="3" fill="#a5b4fc" />
+      ))}
+    </svg>
+  );
+}
 
 export default function Rankings() {
   const { user } = useAuth();
@@ -24,7 +55,17 @@ export default function Rankings() {
     } else if (activeTab === 'competitions') {
       fetchCompetitions();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab]);
+
+  const myHistorySummary = useMemo(() => {
+    if (myHistory.length === 0) return null;
+    const total = myHistory.length;
+    const overallMedia = myHistory.reduce((acc, h) => acc + Number(h.media || 0), 0) / total;
+    const best = myHistory.reduce((acc, h) => (h.position && h.position < acc ? h.position : acc), Number.MAX_SAFE_INTEGER);
+    const trend = [...myHistory].reverse().map((h) => Number(h.media || 0));
+    return { total, overallMedia, best, trend };
+  }, [myHistory]);
 
   const fetchGeneralRanking = async () => {
     setLoading(true);
@@ -141,6 +182,9 @@ export default function Rankings() {
           <>
             {activeTab === 'general' && (
               <div className="space-y-2">
+                <p className="text-xs text-gray-500 mb-2">
+                  Média de todas as participações (média = pontos / questões respondidas)
+                </p>
                 {generalRanking.length === 0 ? (
                   <div className="card text-center text-gray-400">
                     Nenhum participante ainda
@@ -166,12 +210,12 @@ export default function Rankings() {
                           {player.name}
                         </p>
                         <p className="text-xs text-gray-400">
-                          {player.competitions_count} competições · {player.accuracy}% acerto
+                          {player.competitions_count} {player.competitions_count === 1 ? 'competição' : 'competições'} · {player.total_correct} acertos · {player.accuracy}% acerto
                         </p>
                       </div>
                       <div className="text-right">
-                        <p className="font-bold text-primary-400">{player.total_correct}</p>
-                        <p className="text-xs text-gray-400">acertos</p>
+                        <p className="font-bold text-primary-400">{formatMedia(player.media)}</p>
+                        <p className="text-xs text-gray-400">média</p>
                       </div>
                     </motion.div>
                   ))
@@ -255,7 +299,10 @@ export default function Rankings() {
                                       {p.name}
                                     </span>
                                     <span className="text-sm text-gray-400">{p.correct_answers}/{p.total_answered}</span>
-                                    <span className="text-sm font-bold text-primary-400">{p.score} pts</span>
+                                    <div className="text-right">
+                                      <span className="text-sm font-bold text-primary-400">{formatMedia(p.media)}</span>
+                                      <span className="block text-[10px] text-gray-500">média</span>
+                                    </div>
                                   </div>
                                 ))
                               )}
@@ -276,32 +323,64 @@ export default function Rankings() {
                     Você ainda não participou de nenhuma competição
                   </div>
                 ) : (
-                  myHistory.map((comp, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.05 }}
-                      className="card"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-semibold">{comp.title}</p>
-                          <p className="text-xs text-gray-400">
-                            {comp.started_at ? new Date(comp.started_at).toLocaleDateString('pt-BR') : 'Data desconhecida'}
-                          </p>
+                  <>
+                    {myHistorySummary && (
+                      <div className="mb-4 space-y-3">
+                        <div className="grid grid-cols-3 gap-2">
+                          <div className="card text-center py-3">
+                            <p className="text-2xl font-bold text-primary-400">{myHistorySummary.total}</p>
+                            <p className="text-xs text-gray-400">participações</p>
+                          </div>
+                          <div className="card text-center py-3">
+                            <p className="text-2xl font-bold text-primary-400">{formatMedia(myHistorySummary.overallMedia)}</p>
+                            <p className="text-xs text-gray-400">média geral</p>
+                          </div>
+                          <div className="card text-center py-3">
+                            <p className="text-2xl font-bold text-primary-400">
+                              {myHistorySummary.best === Number.MAX_SAFE_INTEGER ? '—' : `${myHistorySummary.best}°`}
+                            </p>
+                            <p className="text-xs text-gray-400">melhor posição</p>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <p className="font-bold text-primary-400">
-                            {comp.correct_answers}/{comp.total_answered}
-                          </p>
-                          <p className="text-xs text-gray-400">
-                            {comp.accuracy}% · {comp.score} pts
-                          </p>
-                        </div>
+                        {myHistorySummary.trend.length > 1 && (
+                          <div className="card p-3">
+                            <MediaSparkline values={myHistorySummary.trend} />
+                            <p className="text-[10px] text-gray-500 text-center mt-1">
+                              Evolução da média (participações mais antigas → recentes)
+                            </p>
+                          </div>
+                        )}
                       </div>
-                    </motion.div>
-                  ))
+                    )}
+
+                    {myHistory.map((comp, i) => (
+                      <motion.div
+                        key={comp.competition_id || i}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className="card"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold">{comp.title}</p>
+                            <p className="text-xs text-gray-400">
+                              {comp.started_at ? new Date(comp.started_at).toLocaleDateString('pt-BR') : 'Data desconhecida'}
+                              {comp.position && comp.participants_count ? ` · ${comp.position}° de ${comp.participants_count}` : ''}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-primary-400">
+                              {comp.correct_answers}/{comp.total_answered}
+                            </p>
+                            <p className="text-xs text-gray-400">
+                              {comp.accuracy}% · {comp.score} pts · média {formatMedia(comp.media)}
+                            </p>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
+                  </>
                 )}
               </div>
             )}

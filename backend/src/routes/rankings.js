@@ -15,13 +15,17 @@ router.get('/competition/:competitionId', auth, async (req, res) => {
         cp.total_answered,
         cp.score,
         CASE WHEN cp.total_answered > 0
+          THEN ROUND((cp.score::numeric / cp.total_answered), 2)::float
+          ELSE 0
+        END as media,
+        CASE WHEN cp.total_answered > 0
           THEN ROUND((cp.correct_answers::float / cp.total_answered) * 100, 1)
           ELSE 0
         END as accuracy
       FROM competition_participants cp
       JOIN users u ON u.id = cp.user_id
       WHERE cp.competition_id = :competitionId
-      ORDER BY cp.correct_answers DESC, cp.score DESC
+      ORDER BY media DESC, cp.correct_answers DESC, cp.score DESC
     `, {
       replacements: { competitionId: req.params.competitionId },
       type: QueryTypes.SELECT
@@ -42,43 +46,43 @@ router.get('/competition/:competitionId', auth, async (req, res) => {
 router.get('/general', auth, async (req, res) => {
   try {
     const rankings = await sequelize.query(`
-      WITH user_stats AS (
+      WITH comp_medias AS (
         SELECT
-          u.id as user_id,
-          u.name,
+          cp.user_id,
+          cp.competition_id,
+          CASE WHEN cp.total_answered > 0
+            THEN cp.score::numeric / cp.total_answered
+            ELSE 0
+          END as media
+        FROM competition_participants cp
+      ),
+      totals AS (
+        SELECT
+          cp.user_id,
+          COUNT(*) as competitions_count,
           COALESCE(SUM(cp.correct_answers), 0) as total_correct,
           COALESCE(SUM(cp.total_answered), 0) as total_answered,
-          COALESCE(COUNT(DISTINCT cp.competition_id), 0) as competitions_count,
           COALESCE(SUM(cp.score), 0) as total_score
-        FROM users u
-        LEFT JOIN competition_participants cp ON cp.user_id = u.id
-        GROUP BY u.id, u.name
-      ),
-      training_stats AS (
-        SELECT
-          user_id,
-          COUNT(*) as total_training_answers,
-          SUM(CASE WHEN is_correct THEN 1 ELSE 0 END) as training_correct
-        FROM training_sessions
-        GROUP BY user_id
+        FROM competition_participants cp
+        GROUP BY cp.user_id
       )
       SELECT
-        us.user_id,
-        us.name,
-        us.total_correct + COALESCE(ts.training_correct, 0) as total_correct,
-        us.total_answered + COALESCE(ts.total_training_answers, 0) as total_answered,
-        us.competitions_count,
-        us.total_score,
-        CASE WHEN (us.total_answered + COALESCE(ts.total_training_answers, 0)) > 0
-          THEN ROUND(
-            ((us.total_correct + COALESCE(ts.training_correct, 0))::float /
-            (us.total_answered + COALESCE(ts.total_training_answers, 0))) * 100, 1
-          )
+        u.id as user_id,
+        u.name,
+        t.competitions_count,
+        t.total_correct,
+        t.total_answered,
+        t.total_score,
+        ROUND(AVG(cm.media), 2)::float as media,
+        CASE WHEN t.total_answered > 0
+          THEN ROUND((t.total_correct::float / t.total_answered) * 100, 1)
           ELSE 0
         END as accuracy
-      FROM user_stats us
-      LEFT JOIN training_stats ts ON ts.user_id = us.user_id
-      ORDER BY total_correct DESC, total_score DESC
+      FROM users u
+      JOIN totals t ON t.user_id = u.id
+      JOIN comp_medias cm ON cm.user_id = u.id
+      GROUP BY u.id, u.name, t.competitions_count, t.total_correct, t.total_answered, t.total_score
+      ORDER BY media DESC, t.total_correct DESC, t.total_score DESC
       LIMIT 50
     `, {
       type: QueryTypes.SELECT
@@ -99,22 +103,51 @@ router.get('/general', auth, async (req, res) => {
 router.get('/my-history', auth, async (req, res) => {
   try {
     const history = await sequelize.query(`
+      WITH ranked AS (
+        SELECT
+          cp.competition_id,
+          cp.user_id,
+          cp.correct_answers,
+          cp.total_answered,
+          cp.score,
+          CASE WHEN cp.total_answered > 0
+            THEN cp.score::numeric / cp.total_answered
+            ELSE 0
+          END as media,
+          RANK() OVER (
+            PARTITION BY cp.competition_id
+            ORDER BY
+              (CASE WHEN cp.total_answered > 0 THEN cp.score::numeric / cp.total_answered ELSE 0 END) DESC,
+              cp.correct_answers DESC,
+              cp.score DESC
+          ) as position
+        FROM competition_participants cp
+      ),
+      counts AS (
+        SELECT competition_id, COUNT(*) as participants_count
+        FROM competition_participants
+        GROUP BY competition_id
+      )
       SELECT
-        cp.competition_id,
+        r.competition_id,
         c.title,
         c.code,
         c.started_at,
         c.finished_at,
-        cp.correct_answers,
-        cp.total_answered,
-        cp.score,
-        CASE WHEN cp.total_answered > 0
-          THEN ROUND((cp.correct_answers::float / cp.total_answered) * 100, 1)
+        r.correct_answers,
+        r.total_answered,
+        r.score,
+        ROUND(r.media, 2)::float as media,
+        CASE WHEN r.total_answered > 0
+          THEN ROUND((r.correct_answers::float / r.total_answered) * 100, 1)
           ELSE 0
-        END as accuracy
-      FROM competition_participants cp
-      JOIN competitions c ON c.id = cp.competition_id
-      WHERE cp.user_id = :userId
+        END as accuracy,
+        r.position,
+        co.participants_count
+      FROM ranked r
+      JOIN competitions c ON c.id = r.competition_id
+      JOIN counts co ON co.competition_id = r.competition_id
+      WHERE r.user_id = :userId
       ORDER BY c.finished_at DESC
       LIMIT 50
     `, {

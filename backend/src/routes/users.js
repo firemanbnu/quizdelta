@@ -19,12 +19,41 @@ router.get('/', auth, adminOnly, async (req, res) => {
       name: u.name,
       email: u.email,
       role: u.role,
+      mustChangePassword: u.must_change_password,
       categories: byUser[u.id] || [],
       createdAt: u.createdAt
     })));
   } catch (error) {
     console.error('Erro ao listar usuários:', error);
     res.status(500).json({ error: 'Erro ao listar usuários' });
+  }
+});
+
+router.post('/:id/reset-password', auth, adminOnly, async (req, res) => {
+  try {
+    const { newPassword } = req.body;
+    const temporary = (newPassword && String(newPassword).length >= 6)
+      ? String(newPassword)
+      : '123456';
+
+    const target = await User.findByPk(req.params.id);
+    if (!target) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    await target.update({
+      password_hash: temporary,
+      must_change_password: true
+    });
+
+    res.json({
+      id: target.id,
+      name: target.name,
+      message: `Senha de ${target.name} redefinida. A senha temporária é "${temporary}" e o usuário deve criar uma nova senha no próximo login.`
+    });
+  } catch (error) {
+    console.error('Erro ao resetar senha:', error);
+    res.status(500).json({ error: 'Erro ao resetar senha' });
   }
 });
 
