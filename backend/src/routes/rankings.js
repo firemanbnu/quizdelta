@@ -19,7 +19,7 @@ router.get('/competition/:competitionId', auth, async (req, res) => {
           ELSE 0
         END as media,
         CASE WHEN cp.total_answered > 0
-          THEN ROUND((cp.correct_answers::float / cp.total_answered) * 100, 1)
+          THEN ROUND((cp.correct_answers::numeric / cp.total_answered) * 100, 1)::float
           ELSE 0
         END as accuracy
       FROM competition_participants cp
@@ -75,7 +75,7 @@ router.get('/general', auth, async (req, res) => {
         t.total_score,
         ROUND(AVG(cm.media), 2)::float as media,
         CASE WHEN t.total_answered > 0
-          THEN ROUND((t.total_correct::float / t.total_answered) * 100, 1)
+          THEN ROUND((t.total_correct::numeric / t.total_answered) * 100, 1)::float
           ELSE 0
         END as accuracy
       FROM users u
@@ -139,7 +139,7 @@ router.get('/my-history', auth, async (req, res) => {
         r.score,
         ROUND(r.media, 2)::float as media,
         CASE WHEN r.total_answered > 0
-          THEN ROUND((r.correct_answers::float / r.total_answered) * 100, 1)
+          THEN ROUND((r.correct_answers::numeric / r.total_answered) * 100, 1)::float
           ELSE 0
         END as accuracy,
         r.position,
