@@ -34,6 +34,20 @@ async function ensureSchema() {
       { raw: true }
     );
   }
+
+  await sequelize.query(
+    `CREATE TABLE IF NOT EXISTS "password_resets" (
+      "id" SERIAL PRIMARY KEY,
+      "user_id" INTEGER NOT NULL,
+      "code_hash" VARCHAR(255) NOT NULL,
+      "expires_at" TIMESTAMP NOT NULL,
+      "used_at" TIMESTAMP,
+      "createdAt" TIMESTAMP NOT NULL DEFAULT NOW(),
+      "updatedAt" TIMESTAMP NOT NULL DEFAULT NOW()
+    )`,
+    { raw: true }
+  );
+
   console.log('Schema garantido: colunas adicionadas se ausentes');
 }
 

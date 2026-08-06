@@ -1,9 +1,19 @@
 const express = require('express');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const bcrypt = require('bcryptjs');
 const User = require('../models/User');
+const PasswordReset = require('../models/PasswordReset');
+const { sendPasswordResetCode } = require('../services/mailer');
 const { auth } = require('../middleware/auth');
 
 const router = express.Router();
+
+const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+
+function generateResetCode() {
+  return String(crypto.randomInt(100000, 1000000));
+}
 
 router.post('/register', async (req, res) => {
   try {
@@ -72,6 +82,87 @@ router.post('/login', async (req, res) => {
   } catch (error) {
     console.error('Erro no login:', error);
     res.status(500).json({ error: 'Erro ao fazer login' });
+  }
+});
+
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ error: 'Email é obrigatório' });
+    }
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.json({ message: 'Se o email existir, você receberá um código de redefinição.' });
+    }
+
+    await PasswordReset.update(
+      { used_at: new Date() },
+      { where: { user_id: user.id, used_at: null } }
+    );
+
+    const code = generateResetCode();
+    const codeHash = await bcrypt.hash(code, 10);
+
+    await PasswordReset.create({
+      user_id: user.id,
+      code_hash: codeHash,
+      expires_at: new Date(Date.now() + RESET_CODE_TTL_MS)
+    });
+
+    await sendPasswordResetCode(user.email, code, user.name);
+
+    res.json({ message: 'Código de redefinição enviado para o seu email.' });
+  } catch (error) {
+    console.error('Erro no forgot-password:', error);
+    res.status(500).json({ error: 'Erro ao solicitar redefinição de senha' });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { email, code, newPassword } = req.body;
+
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: 'Email, código e nova senha são obrigatórios' });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
+    }
+
+    const user = await User.findOne({ where: { email } });
+    if (!user) {
+      return res.status(400).json({ error: 'Código inválido ou expirado' });
+    }
+
+    const reset = await PasswordReset.findOne({
+      where: { user_id: user.id, used_at: null },
+      order: [['createdAt', 'DESC']]
+    });
+
+    if (!reset) {
+      return res.status(400).json({ error: 'Código inválido ou expirado' });
+    }
+
+    if (new Date(reset.expires_at) < new Date()) {
+      return res.status(400).json({ error: 'Código expirado. Solicite um novo.' });
+    }
+
+    const valid = await bcrypt.compare(code, reset.code_hash);
+    if (!valid) {
+      return res.status(400).json({ error: 'Código inválido ou expirado' });
+    }
+
+    await user.update({ password_hash: newPassword });
+    await reset.update({ used_at: new Date() });
+
+    res.json({ message: 'Senha redefinida com sucesso. Faça login com a nova senha.' });
+  } catch (error) {
+    console.error('Erro no reset-password:', error);
+    res.status(500).json({ error: 'Erro ao redefinir senha' });
   }
 });
 

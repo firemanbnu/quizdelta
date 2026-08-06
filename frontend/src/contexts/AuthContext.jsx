@@ -51,6 +51,16 @@ export function AuthProvider({ children }) {
     return user;
   };
 
+  const requestPasswordReset = async (email) => {
+    const res = await axios.post('/api/auth/forgot-password', { email });
+    return res.data;
+  };
+
+  const resetPassword = async (email, code, password) => {
+    const res = await axios.post('/api/auth/reset-password', { email, code, newPassword: password });
+    return res.data;
+  };
+
   const logout = () => {
     localStorage.removeItem('quiz_token');
     delete axios.defaults.headers.common['Authorization'];
@@ -59,7 +69,7 @@ export function AuthProvider({ children }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, loading, login, register, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, register, requestPasswordReset, resetPassword, logout }}>
       {children}
     </AuthContext.Provider>
   );
