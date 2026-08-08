@@ -8,6 +8,7 @@ import CompetitionLobby from './pages/CompetitionLobby';
 import GameRoom from './pages/GameRoom';
 import Training from './pages/Training';
 import Rankings from './pages/Rankings';
+import AnswerReview from './pages/AnswerReview';
 import QuestionManager from './pages/QuestionManager';
 import AdminPanel from './pages/AdminPanel';
 import ChangePassword from './pages/ChangePassword';
@@ -58,6 +59,7 @@ function AppRoutes() {
       <Route path="/game/:code" element={<ProtectedRoute><PasswordGate><GameRoom /></PasswordGate></ProtectedRoute>} />
       <Route path="/training" element={<ProtectedRoute><PasswordGate><Training /></PasswordGate></ProtectedRoute>} />
       <Route path="/rankings" element={<ProtectedRoute><PasswordGate><Rankings /></PasswordGate></ProtectedRoute>} />
+      <Route path="/review/:competitionId/:userId?" element={<ProtectedRoute><PasswordGate><AnswerReview /></PasswordGate></ProtectedRoute>} />
       <Route path="/questions" element={<AdminRoute><PasswordGate><QuestionManager /></PasswordGate></AdminRoute>} />
       <Route path="/admin" element={<AdminRoute><PasswordGate><AdminPanel /></PasswordGate></AdminRoute>} />
       <Route path="*" element={<Navigate to={user ? "/dashboard" : "/login"} />} />

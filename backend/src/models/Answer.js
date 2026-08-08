@@ -21,7 +21,8 @@ const Answer = sequelize.define('Answer', {
   },
   chosen_answer: {
     type: DataTypes.INTEGER,
-    allowNull: false
+    allowNull: true,
+    comment: 'Index of chosen option (null when time ran out)'
   },
   is_correct: {
     type: DataTypes.BOOLEAN,

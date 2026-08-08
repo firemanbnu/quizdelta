@@ -303,6 +303,15 @@ export default function Rankings() {
                                       <span className="text-sm font-bold text-primary-400">{formatMedia(p.media)}</span>
                                       <span className="block text-[10px] text-gray-500">média</span>
                                     </div>
+                                    {user?.role === 'admin' && (
+                                      <button
+                                        onClick={() => navigate(`/review/${selectedComp.id}/${p.user_id}`)}
+                                        className="px-2 py-1 rounded-lg bg-accent-500/20 text-accent-400 hover:bg-accent-500/30 text-xs font-semibold shrink-0"
+                                        title="Ver respostas"
+                                      >
+                                        Ver respostas
+                                      </button>
+                                    )}
                                   </div>
                                 ))
                               )}
@@ -369,13 +378,21 @@ export default function Rankings() {
                               {comp.position && comp.participants_count ? ` · ${comp.position}° de ${comp.participants_count}` : ''}
                             </p>
                           </div>
-                          <div className="text-right">
-                            <p className="font-bold text-primary-400">
-                              {comp.correct_answers}/{comp.total_answered}
-                            </p>
-                            <p className="text-xs text-gray-400">
-                              {comp.accuracy}% · {comp.score} pts · média {formatMedia(comp.media)}
-                            </p>
+                          <div className="flex items-center gap-3">
+                            <div className="text-right">
+                              <p className="font-bold text-primary-400">
+                                {comp.correct_answers}/{comp.total_answered}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {comp.accuracy}% · {comp.score} pts · média {formatMedia(comp.media)}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => navigate(`/review/${comp.competition_id}`)}
+                              className="px-3 py-1.5 rounded-lg bg-primary-500/20 text-primary-400 hover:bg-primary-500/30 text-xs font-semibold shrink-0"
+                            >
+                              Rever
+                            </button>
                           </div>
                         </div>
                       </motion.div>

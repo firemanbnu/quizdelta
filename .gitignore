@@ -5,3 +5,5 @@ dist/
 .DS_Store
 *.log
 backend/data/
+.vercel
+.env*

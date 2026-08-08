@@ -3,6 +3,9 @@ const { Op, QueryTypes } = require('sequelize');
 const sequelize = require('../database');
 const Competition = require('../models/Competition');
 const CompetitionParticipant = require('../models/CompetitionParticipant');
+const Answer = require('../models/Answer');
+const Question = require('../models/Question');
+const User = require('../models/User');
 const { countDistinctQuestions } = require('../services/questionPicker');
 const { auth, adminOnly } = require('../middleware/auth');
 const { v4: uuidv4 } = require('uuid');
@@ -114,6 +117,73 @@ router.get('/:id', auth, async (req, res) => {
     res.json(competition);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao buscar competição' });
+  }
+});
+
+router.get('/:id/answers', auth, async (req, res) => {
+  try {
+    const competitionId = parseInt(req.params.id, 10);
+    const competition = await Competition.findByPk(competitionId);
+    if (!competition) {
+      return res.status(404).json({ error: 'Competição não encontrada' });
+    }
+
+    let targetUserId = req.user.id;
+    if (req.query.userId) {
+      if (req.user.role !== 'admin') {
+        return res.status(403).json({ error: 'Acesso restrito a administradores' });
+      }
+      if (competition.status !== 'finished') {
+        return res.status(403).json({ error: 'Só é possível revisar respostas de outros após o término da competição' });
+      }
+      targetUserId = parseInt(req.query.userId, 10);
+    }
+
+    const participant = await CompetitionParticipant.findOne({
+      where: { competition_id: competitionId, user_id: targetUserId },
+      include: [{ model: User, as: 'user', attributes: ['id', 'name'] }]
+    });
+
+    if (!participant) {
+      return res.status(404).json({ error: 'Participante não encontrado' });
+    }
+
+    const answers = await Answer.findAll({
+      where: { competition_id: competitionId, user_id: targetUserId },
+      include: [{ model: Question, as: 'question' }],
+      order: [['id', 'ASC']]
+    });
+
+    res.json({
+      competition: {
+        id: competition.id,
+        title: competition.title,
+        code: competition.code,
+        status: competition.status
+      },
+      participant: {
+        userId: targetUserId,
+        name: participant.user ? participant.user.name : 'Participante',
+        score: participant.score,
+        correctAnswers: participant.correct_answers,
+        totalAnswered: participant.total_answered
+      },
+      answers: answers.map((a) => ({
+        questionId: a.question_id,
+        text: a.question.text,
+        options: a.question.options,
+        category: a.question.category,
+        difficulty: a.question.difficulty,
+        chosenAnswer: a.chosen_answer,
+        correctAnswer: a.question.correct_answer,
+        isCorrect: a.is_correct,
+        responseTimeMs: a.response_time_ms,
+        pointsEarned: a.points_earned
+      }))
+    });
+  } catch (error) {
+    console.error('Erro ao buscar respostas:', error);
+    res.status(500).json({ error: 'Erro ao buscar respostas' });
   }
 });
 

@@ -19,6 +19,7 @@ export default function GameRoom() {
   const [finalRanking, setFinalRanking] = useState([]);
   const [questionNumber, setQuestionNumber] = useState(0);
   const [totalQuestions, setTotalQuestions] = useState(0);
+  const [competitionId, setCompetitionId] = useState(null);
   const timerRef = useRef(null);
   const questionStartTime = useRef(null);
   const questionRef = useRef(null);
@@ -64,6 +65,8 @@ export default function GameRoom() {
         setFinished(true);
         setFinalRanking([]);
         if (timerRef.current) clearInterval(timerRef.current);
+      } else {
+        setCompetitionId(response.competition.id);
       }
     });
 
@@ -169,6 +172,15 @@ export default function GameRoom() {
               </motion.div>
             ))}
           </div>
+
+          {competitionId && (
+            <button
+              onClick={() => navigate(`/review/${competitionId}`)}
+              className="btn-secondary w-full mb-2"
+            >
+              Rever minhas respostas
+            </button>
+          )}
 
           <button onClick={handleBackToDashboard} className="btn-primary w-full">
             Voltar ao Dashboard
