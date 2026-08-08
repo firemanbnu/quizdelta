@@ -43,7 +43,16 @@ router.get('/all', auth, adminOnly, async (req, res) => {
     if (category) where.category = category;
     if (difficulty) where.difficulty = difficulty;
     if (approved !== undefined) where.approved = approved === 'true';
-    if (search) where.text = { [Op.iLike]: `%${search}%` };
+    if (search) {
+      where[Op.or] = [
+        { text: { [Op.iLike]: `%${search}%` } },
+        { category: { [Op.iLike]: `%${search}%` } },
+        sequelize.where(
+          sequelize.cast(sequelize.col('options'), 'text'),
+          { [Op.iLike]: `%${search}%` }
+        )
+      ];
+    }
 
     const questions = await Question.findAll({
       where,

@@ -24,11 +24,17 @@ export default function QuestionManager() {
   const [message, setMessage] = useState('');
   const [importCategory, setImportCategory] = useState('Importado');
   const [highlightedId, setHighlightedId] = useState(null);
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const listRef = useRef(null);
 
   useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(filter.search), 300);
+    return () => clearTimeout(timer);
+  }, [filter.search]);
+
+  useEffect(() => {
     fetchQuestions();
-  }, [filter]);
+  }, [filter.category, filter.difficulty, filter.approved, debouncedSearch]);
 
   const fetchCategories = async () => {
     try {
@@ -60,7 +66,7 @@ export default function QuestionManager() {
       if (filter.category) params.category = filter.category;
       if (filter.difficulty) params.difficulty = filter.difficulty;
       if (filter.approved) params.approved = filter.approved;
-      if (filter.search) params.search = filter.search;
+      if (debouncedSearch) params.search = debouncedSearch;
       const res = await axios.get('/api/questions/all', { params });
       setQuestions(res.data);
     } catch (err) {
@@ -333,9 +339,18 @@ export default function QuestionManager() {
                 type="text"
                 value={filter.search}
                 onChange={(e) => setFilter({ ...filter, search: e.target.value })}
-                placeholder="Buscar por título da pergunta..."
+                placeholder="Buscar pergunta, opção ou grupo..."
                 className="input text-sm flex-1 min-w-40"
               />
+              {filter.search && (
+                <button
+                  onClick={() => setFilter({ ...filter, search: '' })}
+                  className="px-3 py-2 rounded-xl text-sm font-semibold bg-gray-800 text-gray-400 hover:bg-gray-700 transition-all"
+                  title="Limpar busca"
+                >
+                  ✕ Limpar
+                </button>
+              )}
               <select
                 value={filter.approved}
                 onChange={(e) => setFilter({ ...filter, approved: e.target.value })}
